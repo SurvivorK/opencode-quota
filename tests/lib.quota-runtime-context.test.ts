@@ -22,7 +22,7 @@ import {
 import { resolveRuntimeContextRoots } from "../src/lib/config-file-utils.js";
 
 function quotaConfigSource(dir: string): string {
-  return join(dir, "opencode-quota", "quota-toast.json") + " (opencode-quota/quota-toast.json)";
+  return join(dir, "opencode.json") + " (experimental.quotaToast)";
 }
 
 describe("quota runtime context", () => {

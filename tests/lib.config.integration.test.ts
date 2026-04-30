@@ -19,7 +19,7 @@ import { createLoadConfigMeta, loadConfig } from "../src/lib/config.js";
 import { getOpencodeRuntimeDirCandidates } from "../src/lib/opencode-runtime-paths.js";
 
 function quotaConfigSource(dir: string): string {
-  return join(dir, "opencode-quota", "quota-toast.json") + " (opencode-quota/quota-toast.json)";
+  return join(dir, "opencode.json") + " (experimental.quotaToast)";
 }
 
 describe("loadConfig integration runtime-path resolution", () => {
