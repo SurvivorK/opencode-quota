@@ -64,6 +64,35 @@ describe("loadConfig", () => {
     return { config, meta };
   }
 
+  it("defaults TUI sidebar panel config and accepts validated nested overrides", async () => {
+    const defaults = await loadSdkConfig({});
+    expect(defaults.config.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
+    expect(defaults.config.tuiSidebarPanel).not.toBe(DEFAULT_CONFIG.tuiSidebarPanel);
+
+    const explicit = await loadSdkConfig({
+      tuiSidebarPanel: {
+        enabled: false,
+      },
+    });
+    expect(explicit.config.tuiSidebarPanel).toEqual({ enabled: false });
+    expect(explicit.meta.settingSources).toEqual({
+      "tuiSidebarPanel.enabled": "client.config.get",
+    });
+    expect(explicit.meta.networkSettingSources).toEqual({});
+
+    const partialInvalid = await loadSdkConfig({
+      tuiSidebarPanel: {
+        enabled: "no",
+      },
+    });
+    expect(partialInvalid.config.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
+    expect(partialInvalid.meta.settingSources).toEqual({});
+
+    const invalidNested = await loadSdkConfig({ tuiSidebarPanel: true });
+    expect(invalidNested.config.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
+    expect(invalidNested.meta.settingSources).toEqual({});
+  });
+
   it("defaults tuiCompactStatus and accepts validated nested overrides", async () => {
     const defaults = await loadSdkConfig({});
     expect(defaults.config.tuiCompactStatus).toEqual(DEFAULT_CONFIG.tuiCompactStatus);
@@ -119,11 +148,14 @@ describe("loadConfig", () => {
   it("deep-clones default config when no config source exists", async () => {
     const meta = createLoadConfigMeta();
     const first = await loadConfig(undefined, meta, { cwd: isolatedCwd });
+    first.tuiSidebarPanel.enabled = false;
     first.tuiCompactStatus.enabled = true;
     first.tuiCompactStatus.maxWidth = 1;
 
     const second = await loadConfig(undefined, undefined, { cwd: isolatedCwd });
+    expect(second.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
     expect(second.tuiCompactStatus).toEqual(DEFAULT_CONFIG.tuiCompactStatus);
+    expect(DEFAULT_CONFIG.tuiSidebarPanel).toEqual({ enabled: true });
     expect(DEFAULT_CONFIG.tuiCompactStatus).toEqual({
       enabled: false,
       homeBottom: true,

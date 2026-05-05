@@ -20,7 +20,7 @@ import { getSidebarBodyLineColor } from "./lib/tui-line-style.js";
 import {
   loadTuiHomeCompactStatus,
   loadTuiSessionQuotaSurfaces,
-  resolveTuiCompactStatusRegistration,
+  resolveTuiSurfaceRegistration,
 } from "./lib/tui-runtime.js";
 
 const id = "@slkiser/opencode-quota";
@@ -317,23 +317,23 @@ function SidebarContentView(props: {
   const resource = useSessionQuotaResource(props.api, () => props.sessionID);
   const panel = () => resource().sidebar();
 
-  if (!shouldRenderSidebarPanel(panel())) return null;
-
   const lines = () => getSidebarPanelLines(panel());
 
   return (
-    <box gap={0}>
-      <text fg={props.api.theme.current.text}>
-        <b>Quota</b>
-      </text>
+    <Show when={shouldRenderSidebarPanel(panel())}>
       <box gap={0}>
-        {lines().map((line) => (
-          <text fg={getSidebarBodyLineColor(line, props.api.theme.current)} wrapMode="none">
-            {line || " "}
-          </text>
-        ))}
+        <text fg={props.api.theme.current.text}>
+          <b>Quota</b>
+        </text>
+        <box gap={0}>
+          {lines().map((line) => (
+            <text fg={getSidebarBodyLineColor(line, props.api.theme.current)} wrapMode="none">
+              {line || " "}
+            </text>
+          ))}
+        </box>
       </box>
-    </box>
+    </Show>
   );
 }
 
@@ -391,7 +391,7 @@ function HomeCompactStatusView(props: { api: TuiPluginApi }) {
   return <CompactStatusLine api={props.api} panel={resource.compact} justifyContent="center" />;
 }
 
-const tui: TuiPlugin = async (api) => {
+function registerSidebarSlots(api: TuiPluginApi): void {
   api.slots.register({
     order: SIDEBAR_ORDER,
     slots: {
@@ -400,14 +400,22 @@ const tui: TuiPlugin = async (api) => {
       },
     },
   });
+}
 
-  let compactRegistration;
+const tui: TuiPlugin = async (api) => {
+  let surfaceRegistration;
   try {
-    compactRegistration = await resolveTuiCompactStatusRegistration(api);
+    surfaceRegistration = await resolveTuiSurfaceRegistration(api);
   } catch {
+    registerSidebarSlots(api);
     return;
   }
 
+  if (surfaceRegistration.sidebar.enabled) {
+    registerSidebarSlots(api);
+  }
+
+  const compactRegistration = surfaceRegistration.compact;
   if (!compactRegistration.enabled) return;
 
   const compactSlots: Record<string, (ctx: any, props: any) => JSX.Element | null> = {};

@@ -4,18 +4,18 @@ const {
   cleanupFns,
   loadTuiHomeCompactStatus,
   loadTuiSessionQuotaSurfaces,
-  resolveTuiCompactStatusRegistration,
+  resolveTuiSurfaceRegistration,
 } = vi.hoisted(() => ({
   cleanupFns: [] as Array<() => void>,
   loadTuiHomeCompactStatus: vi.fn(),
   loadTuiSessionQuotaSurfaces: vi.fn(),
-  resolveTuiCompactStatusRegistration: vi.fn(),
+  resolveTuiSurfaceRegistration: vi.fn(),
 }));
 
 vi.mock("../src/lib/tui-runtime.js", () => ({
   loadTuiHomeCompactStatus,
   loadTuiSessionQuotaSurfaces,
-  resolveTuiCompactStatusRegistration,
+  resolveTuiSurfaceRegistration,
 }));
 
 vi.mock("solid-js", () => ({
@@ -121,7 +121,7 @@ describe("tui plugin smoke", () => {
       sidebar: { status: "ready", lines: ["Sidebar quota"] },
       compact: { status: "ready", text: "Session quota" },
     });
-    resolveTuiCompactStatusRegistration.mockReset();
+    resolveTuiSurfaceRegistration.mockReset();
   });
 
   afterEach(() => {
@@ -131,31 +131,55 @@ describe("tui plugin smoke", () => {
     vi.useRealTimers();
   });
 
-  it("always registers sidebar_content at order 150 and registers compact slots only when opted in", async () => {
+  it("registers sidebar_content and compact slots independently", async () => {
     const plugin = await loadTuiModule();
-    const disabled = createApi();
+    const sidebarOnly = createApi();
 
-    resolveTuiCompactStatusRegistration.mockResolvedValueOnce({
-      enabled: false,
-      homeBottom: false,
-      sessionPrompt: false,
-      hasNativeProviderQuota: false,
-      suppressedByNativeProviderQuota: false,
+    resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+      sidebar: { enabled: true },
+      compact: {
+        enabled: false,
+        homeBottom: false,
+        sessionPrompt: false,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
     });
 
-    await plugin.tui(disabled.api as any, undefined, {} as any);
+    await plugin.tui(sidebarOnly.api as any, undefined, {} as any);
 
-    expect(disabled.registered).toHaveLength(1);
-    expect(disabled.registered[0].order).toBe(150);
-    expect(Object.keys(disabled.registered[0].slots)).toEqual(["sidebar_content"]);
+    expect(sidebarOnly.registered).toHaveLength(1);
+    expect(sidebarOnly.registered[0].order).toBe(150);
+    expect(Object.keys(sidebarOnly.registered[0].slots)).toEqual(["sidebar_content"]);
+
+    const compactOnly = createApi();
+    resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+      sidebar: { enabled: false },
+      compact: {
+        enabled: true,
+        homeBottom: true,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+    });
+
+    await plugin.tui(compactOnly.api as any, undefined, {} as any);
+
+    expect(compactOnly.registered).toHaveLength(1);
+    expect(compactOnly.registered[0].order).toBe(90);
+    expect(Object.keys(compactOnly.registered[0].slots)).toEqual(["session_prompt", "home_bottom"]);
 
     const enabled = createApi();
-    resolveTuiCompactStatusRegistration.mockResolvedValueOnce({
-      enabled: true,
-      homeBottom: true,
-      sessionPrompt: true,
-      hasNativeProviderQuota: false,
-      suppressedByNativeProviderQuota: false,
+    resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+      sidebar: { enabled: true },
+      compact: {
+        enabled: true,
+        homeBottom: true,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
     });
 
     await plugin.tui(enabled.api as any, undefined, {} as any);
@@ -167,16 +191,32 @@ describe("tui plugin smoke", () => {
     expect(Object.keys(enabled.registered[1].slots)).toEqual(["session_prompt", "home_bottom"]);
   });
 
+  it("falls back to sidebar-only registration when surface resolution fails", async () => {
+    const plugin = await loadTuiModule();
+    const fallback = createApi();
+
+    resolveTuiSurfaceRegistration.mockRejectedValueOnce(new Error("config unavailable"));
+
+    await plugin.tui(fallback.api as any, undefined, {} as any);
+
+    expect(fallback.registered).toHaveLength(1);
+    expect(fallback.registered[0].order).toBe(150);
+    expect(Object.keys(fallback.registered[0].slots)).toEqual(["sidebar_content"]);
+  });
+
   it("does not register right-side compact slots", async () => {
     const plugin = await loadTuiModule();
     const { api, registered } = createApi();
 
-    resolveTuiCompactStatusRegistration.mockResolvedValueOnce({
-      enabled: true,
-      homeBottom: true,
-      sessionPrompt: true,
-      hasNativeProviderQuota: false,
-      suppressedByNativeProviderQuota: false,
+    resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+      sidebar: { enabled: true },
+      compact: {
+        enabled: true,
+        homeBottom: true,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
     });
 
     await plugin.tui(api as any, undefined, {} as any);
@@ -194,12 +234,15 @@ describe("tui plugin smoke", () => {
     const onSubmit = vi.fn();
     const ref = vi.fn();
 
-    resolveTuiCompactStatusRegistration.mockResolvedValueOnce({
-      enabled: true,
-      homeBottom: false,
-      sessionPrompt: true,
-      hasNativeProviderQuota: false,
-      suppressedByNativeProviderQuota: false,
+    resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+      sidebar: { enabled: true },
+      compact: {
+        enabled: true,
+        homeBottom: false,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
     });
 
     await plugin.tui(api as any, undefined, {} as any);

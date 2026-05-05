@@ -27,6 +27,10 @@ export interface PricingSnapshotConfig {
   autoRefresh: number;
 }
 
+export interface TuiSidebarPanelConfig {
+  enabled: boolean;
+}
+
 export interface TuiCompactStatusConfig {
   enabled: boolean;
   homeBottom: boolean;
@@ -114,6 +118,9 @@ export interface QuotaToastConfig {
    */
   showSessionTokens: boolean;
 
+  /** TUI sidebar panel visibility when the TUI plugin is installed. */
+  tuiSidebarPanel: TuiSidebarPanelConfig;
+
   /** Opt-in compact quota/status text for future TUI prompt/home surfaces. */
   tuiCompactStatus: TuiCompactStatusConfig;
 
@@ -162,6 +169,9 @@ export const DEFAULT_CONFIG: QuotaToastConfig = {
   toastDurationMs: 9000,
   onlyCurrentModel: false,
   showSessionTokens: true,
+  tuiSidebarPanel: {
+    enabled: true,
+  },
   tuiCompactStatus: {
     enabled: false,
     homeBottom: true,

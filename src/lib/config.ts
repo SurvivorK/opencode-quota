@@ -53,6 +53,7 @@ export const QUOTA_TOAST_SETTING_SOURCE_KEYS = [
   "toastDurationMs",
   "onlyCurrentModel",
   "showSessionTokens",
+  "tuiSidebarPanel.enabled",
   "tuiCompactStatus.enabled",
   "tuiCompactStatus.homeBottom",
   "tuiCompactStatus.sessionPrompt",
@@ -115,6 +116,7 @@ const NETWORK_SETTING_SOURCE_KEYS = [
 ] as const satisfies readonly QuotaToastSettingSourceKey[];
 
 type PricingSnapshotPatch = Partial<QuotaToastConfig["pricingSnapshot"]>;
+type TuiSidebarPanelPatch = Partial<QuotaToastConfig["tuiSidebarPanel"]>;
 type TuiCompactStatusPatch = Partial<QuotaToastConfig["tuiCompactStatus"]>;
 type LayoutPatch = Partial<QuotaToastConfig["layout"]>;
 
@@ -143,6 +145,7 @@ type ValidatedQuotaToastPatch = {
   toastDurationMs?: number;
   onlyCurrentModel?: boolean;
   showSessionTokens?: boolean;
+  tuiSidebarPanel?: TuiSidebarPanelPatch;
   tuiCompactStatus?: TuiCompactStatusPatch;
   layout?: LayoutPatch;
 };
@@ -264,6 +267,7 @@ function cloneConfig(config: QuotaToastConfig): QuotaToastConfig {
     googleModels: [...config.googleModels],
     opencodeGoWindows: [...config.opencodeGoWindows],
     pricingSnapshot: { ...config.pricingSnapshot },
+    tuiSidebarPanel: { ...config.tuiSidebarPanel },
     tuiCompactStatus: { ...config.tuiCompactStatus },
     layout: { ...config.layout },
   };
@@ -347,6 +351,20 @@ function extractPricingSnapshotPatch(value: unknown): PricingSnapshotPatch | und
 
   if (hasOwnKey(value, "autoRefresh") && isValidPricingSnapshotAutoRefresh(value.autoRefresh)) {
     patch.autoRefresh = value.autoRefresh;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
+function extractTuiSidebarPanelPatch(value: unknown): TuiSidebarPanelPatch | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const patch: TuiSidebarPanelPatch = {};
+
+  if (hasOwnKey(value, "enabled") && typeof value.enabled === "boolean") {
+    patch.enabled = value.enabled;
   }
 
   return Object.keys(patch).length > 0 ? patch : undefined;
@@ -563,6 +581,13 @@ function extractValidatedQuotaToastPatch(
     patch.showSessionTokens = quotaToastConfig.showSessionTokens;
   }
 
+  if (hasOwnKey(quotaToastConfig, "tuiSidebarPanel")) {
+    const tuiSidebarPanel = extractTuiSidebarPanelPatch(quotaToastConfig.tuiSidebarPanel);
+    if (tuiSidebarPanel) {
+      patch.tuiSidebarPanel = tuiSidebarPanel;
+    }
+  }
+
   if (hasOwnKey(quotaToastConfig, "tuiCompactStatus")) {
     const tuiCompactStatus = extractTuiCompactStatusPatch(quotaToastConfig.tuiCompactStatus);
     if (tuiCompactStatus) {
@@ -717,6 +742,13 @@ function applyValidatedQuotaToastPatch(
   if (hasOwnKey(patch, "showSessionTokens")) {
     config.showSessionTokens = patch.showSessionTokens!;
     applySettingSource(settingSources, "showSessionTokens", sourcePath);
+  }
+
+  if (patch.tuiSidebarPanel) {
+    if (hasOwnKey(patch.tuiSidebarPanel, "enabled")) {
+      config.tuiSidebarPanel.enabled = patch.tuiSidebarPanel.enabled!;
+      applySettingSource(settingSources, "tuiSidebarPanel.enabled", sourcePath);
+    }
   }
 
   if (patch.tuiCompactStatus) {

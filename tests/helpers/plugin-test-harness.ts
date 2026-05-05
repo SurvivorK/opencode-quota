@@ -141,6 +141,10 @@ export function makeQuotaToastTestConfig(
       ...DEFAULT_CONFIG.pricingSnapshot,
       ...overrides.pricingSnapshot,
     },
+    tuiSidebarPanel: {
+      ...DEFAULT_CONFIG.tuiSidebarPanel,
+      ...overrides.tuiSidebarPanel,
+    },
     tuiCompactStatus: {
       ...DEFAULT_CONFIG.tuiCompactStatus,
       ...overrides.tuiCompactStatus,

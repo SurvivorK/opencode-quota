@@ -112,6 +112,7 @@ type NormalizedQuotaUiIntent = {
   choices: InitQuotaUiChoice[];
   enableToast: boolean;
   installTuiPlugin: boolean;
+  enableSidebarPanel: boolean;
   enableCompactStatus: boolean;
 };
 
@@ -185,16 +186,15 @@ function normalizeQuotaUiIntent(selections: InitInstallerSelections): Normalized
     choices = choices.filter((choice) => choice !== "none");
   }
 
-  if (choices.includes("compact_status") && !choices.includes("sidebar")) {
-    seen.add("sidebar");
-    choices = QUOTA_UI_CHOICE_ORDER.filter((choice) => seen.has(choice) && choice !== "none");
-  }
+  const enableSidebarPanel = choices.includes("sidebar");
+  const enableCompactStatus = choices.includes("compact_status");
 
   return {
     choices,
     enableToast: choices.includes("toast"),
-    installTuiPlugin: choices.includes("sidebar") || choices.includes("compact_status"),
-    enableCompactStatus: choices.includes("compact_status"),
+    installTuiPlugin: enableSidebarPanel || enableCompactStatus,
+    enableSidebarPanel,
+    enableCompactStatus,
   };
 }
 
@@ -372,6 +372,32 @@ function addSettingIfMissing(
   }
 
   pushSkippedIfChanged(edit, pathLabel, target[key], value);
+}
+
+function planTuiSidebarPanelConfig(params: {
+  quotaToast: JsonObject;
+  quotaUiIntent: NormalizedQuotaUiIntent;
+  edit: PlannedConfigEdit;
+}): void {
+  const pathLabel = "quotaToast.tuiSidebarPanel";
+  let tuiSidebarPanel: JsonObject;
+  if (!hasOwnKey(params.quotaToast, "tuiSidebarPanel")) {
+    tuiSidebarPanel = {};
+    params.quotaToast.tuiSidebarPanel = tuiSidebarPanel;
+  } else if (isPlainObject(params.quotaToast.tuiSidebarPanel)) {
+    tuiSidebarPanel = params.quotaToast.tuiSidebarPanel;
+  } else {
+    params.edit.warnings.push(`${pathLabel} is not an object; preserved existing value.`);
+    return;
+  }
+
+  addSettingIfMissing(
+    tuiSidebarPanel,
+    "enabled",
+    params.quotaUiIntent.enableSidebarPanel,
+    `${pathLabel}.enabled`,
+    params.edit,
+  );
 }
 
 function planTuiCompactStatusConfig(params: {
@@ -654,6 +680,11 @@ async function planQuotaConfigEdit(params: {
     "quotaToast.percentDisplayMode",
     edit,
   );
+  planTuiSidebarPanelConfig({
+    quotaToast,
+    quotaUiIntent: params.quotaUiIntent,
+    edit,
+  });
   planTuiCompactStatusConfig({
     quotaToast,
     quotaUiIntent: params.quotaUiIntent,

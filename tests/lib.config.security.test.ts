@@ -253,6 +253,44 @@ describe("loadConfig layered precedence", () => {
     );
   });
 
+  it("merges tuiSidebarPanel enabled per layer and ignores invalid workspace fields", async () => {
+    writeFileSync(
+      join(xdgConfigHome, "opencode", "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            tuiSidebarPanel: {
+              enabled: false,
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    writeFileSync(
+      join(workspaceDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            tuiSidebarPanel: {
+              enabled: "yes",
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    const meta = createLoadConfigMeta();
+    const cfg = await loadConfig(undefined, meta, { cwd: workspaceDir });
+
+    expect(cfg.tuiSidebarPanel).toEqual({ enabled: false });
+    expect(meta.settingSources["tuiSidebarPanel.enabled"]).toBe(
+      quotaConfigSource(join(xdgConfigHome, "opencode")),
+    );
+  });
+
   it("merges tuiCompactStatus per field and ignores invalid workspace fields", async () => {
     writeFileSync(
       join(xdgConfigHome, "opencode", "opencode.json"),

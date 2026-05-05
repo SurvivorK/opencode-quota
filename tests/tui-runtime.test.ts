@@ -47,6 +47,7 @@ import {
   loadTuiHomeCompactStatus,
   loadTuiSessionQuotaSurfaces,
   resolveTuiCompactStatusRegistration,
+  resolveTuiSurfaceRegistration,
   resolveWorkspaceDir,
 } from "../src/lib/tui-runtime.js";
 
@@ -707,6 +708,173 @@ describe("tui runtime helpers", () => {
       suppressedByNativeProviderQuota: true,
     });
     expect(collectQuotaRenderData).not.toHaveBeenCalled();
+  });
+
+  it("resolves sidebar independently from compact native-provider suppression", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiSidebarPanel: {
+              enabled: true,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              sessionPrompt: true,
+              suppressWhenNativeProviderQuota: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const registration = await resolveTuiSurfaceRegistration({
+      state: {
+        provider: [],
+        path: {
+          worktree: worktreeDir,
+          directory: nestedDir,
+        },
+        session: {
+          messages: () => [],
+        },
+      },
+      client: {
+        experimental: {
+          providerQuota: {},
+        },
+      },
+    } as any);
+
+    expect(registration).toEqual({
+      sidebar: {
+        enabled: true,
+      },
+      compact: {
+        enabled: false,
+        homeBottom: false,
+        sessionPrompt: false,
+        hasNativeProviderQuota: true,
+        suppressedByNativeProviderQuota: true,
+      },
+    });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+  });
+
+  it("loads compact session surface while returning disabled sidebar when sidebar config is off", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            percentDisplayMode: "used",
+            tuiSidebarPanel: {
+              enabled: false,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+              maxWidth: 42,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const data = {
+      entries: [
+        {
+          name: "Copilot 5h",
+          percentRemaining: 18,
+        },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({ data });
+    buildSidebarQuotaPanelLines.mockReturnValue(["Sidebar quota"]);
+    buildCompactQuotaStatusLine.mockReturnValue("Compact quota");
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      sessionID: "compact-sidebar-off",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "disabled", lines: [] },
+      compact: { status: "ready", text: "Compact quota" },
+    });
+    expect(collectQuotaRenderData).toHaveBeenCalledOnce();
+    expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith({
+      data,
+      percentDisplayMode: "used",
+      maxWidth: 42,
+    });
+  });
+
+  it("skips session quota collection when sidebar and session compact are disabled", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiSidebarPanel: {
+              enabled: false,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: false,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      sessionID: "all-session-surfaces-off",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "disabled", lines: [] },
+      compact: { status: "disabled" },
+    });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+    expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
+    expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
   });
 
   it("loads sidebar and compact session surfaces from one collection", async () => {
