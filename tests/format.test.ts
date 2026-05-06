@@ -494,7 +494,7 @@ describe("formatQuotaRows", () => {
 
     expect(out.split("\n")).toEqual([
       SESSION_TOKEN_SECTION_HEADING,
-      "  372 new  120 cache  492 in  41 out",
+      "  372 (120) in  41 out",
     ]);
   });
 
@@ -543,7 +543,7 @@ describe("formatQuotaRows", () => {
 
     expect(out.split("\n")).toEqual([
       SESSION_TOKEN_SECTION_HEADING,
-      "  openai/gpt-5.4-mini      372 new     120 cache     492 in      41 out",
+      "  openai/gpt-5.4-mini   372 (120) in      41 out",
     ]);
   });
 

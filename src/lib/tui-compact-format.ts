@@ -173,20 +173,12 @@ function formatCompactSessionTokensSegment(data: QuotaRenderData): string | null
   if (!hasTokenData) return null;
 
   const totalCached = sessionTokens.totalCachedInput ?? 0;
-  const totalCombined = sessionTokens.totalCombinedInput ?? sessionTokens.totalInput + totalCached;
-
-  if (totalCached > 0) {
-    return compactText(
-      `tok ${formatCompactTokenCount(sessionTokens.totalInput)} new / ${formatCompactTokenCount(
-        totalCached,
-      )} cache / ${formatCompactTokenCount(totalCombined)} in / ${formatCompactTokenCount(
-        sessionTokens.totalOutput,
-      )} out`,
-    );
-  }
+  const inputSegment = totalCached > 0
+    ? `${formatCompactTokenCount(sessionTokens.totalInput)} (${formatCompactTokenCount(totalCached)})`
+    : formatCompactTokenCount(sessionTokens.totalInput);
 
   return compactText(
-    `tok ${formatCompactTokenCount(sessionTokens.totalInput)} in / ${formatCompactTokenCount(
+    `tok ${inputSegment} in / ${formatCompactTokenCount(
       sessionTokens.totalOutput,
     )} out`,
   );

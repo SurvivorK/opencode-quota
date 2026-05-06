@@ -62,7 +62,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect(rendered).not.toContain("\u0003");
     expect(rendered).toContain("Err: Bad");
     expect(rendered).toContain(SESSION_TOKEN_SECTION_HEADING);
-    expect(rendered).toContain("12 new  5 cache  17 in  34 out");
+    expect(rendered).toContain("12 (5) in  34 out");
     expect(rendered).toContain("gpt-5");
   });
 
@@ -363,10 +363,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect(lines).toEqual([
       SESSION_TOKEN_SECTION_HEADING,
       "  openai/gpt-5.4-mini",
-      "    372 new",
-      "    120 cache",
-      "    492 in",
-      "    41 out",
+      "    372 (120) in  41 out",
     ]);
   });
 
@@ -398,7 +395,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     });
 
     expect(lines.every((line) => line.length <= TUI_SIDEBAR_MAX_WIDTH)).toBe(true);
-    expect(lines).toEqual([SESSION_TOKEN_SECTION_HEADING, "  372 new  120 cache  492 in  41 out"]);
+    expect(lines).toEqual([SESSION_TOKEN_SECTION_HEADING, "  372 (120) in  41 out"]);
   });
 
   it("keeps value-only rows unchanged when percentDisplayMode is used", () => {

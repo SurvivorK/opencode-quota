@@ -73,7 +73,7 @@ describe("renderSessionTokensLines", () => {
 
     expect(lines).toEqual([
       SESSION_TOKEN_SECTION_HEADING,
-      "  openai/gpt-5            1.2K new     456 cache    1.7K in     567 out",
+      "  openai/gpt-5          1.2K (456) in     567 out",
     ]);
   });
 });
@@ -113,6 +113,6 @@ describe("renderSidebarSessionTokenSummaryLines", () => {
       { maxWidth: 80 },
     );
 
-    expect(lines).toEqual([SESSION_TOKEN_SECTION_HEADING, "  372 new  120 cache  492 in  41 out"]);
+    expect(lines).toEqual([SESSION_TOKEN_SECTION_HEADING, "  372 (120) in  41 out"]);
   });
 });

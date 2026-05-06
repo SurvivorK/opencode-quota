@@ -132,7 +132,7 @@ describe("buildCompactQuotaStatusLine", () => {
       },
     });
 
-    expect(line).toBe("Copilot 82% | Cursor API - $2.40 | tok 12.4K new / 5.6K cache / 18K in / 3.1K out");
+    expect(line).toBe("Copilot 82% | Cursor API - $2.40 | tok 12.4K (5.6K) in / 3.1K out");
   });
 
   it("summarizes errors as issue counts when quota segments exist and the count fits", () => {

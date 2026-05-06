@@ -35,22 +35,25 @@ function clampRenderedLine(line: string, maxWidth?: number): string {
   return width === undefined ? line : line.slice(0, width);
 }
 
+function formatInputWithCache(input: number, cachedInput?: number): string {
+  const inputStr = formatTokenCount(input);
+  const cached = cachedInput ?? 0;
+  return cached > 0 ? `${inputStr} (${formatTokenCount(cached)})` : inputStr;
+}
+
+function formatInputCell(input: number, cachedInput?: number): string {
+  const value = formatInputWithCache(input, cachedInput);
+  return value.length > 6 ? value : padLeft(value, 6);
+}
+
 function buildWideSessionTokenSectionModel(sessionTokens: SessionTokensData): SessionTokenSectionModel {
   const lines: string[] = [];
   const showCached = hasAnyCachedInput(sessionTokens);
   for (const model of sessionTokens.models) {
     const shortName = shortenModelName(model.modelID, 20);
-    const inStr = formatTokenCount(model.input);
-    const cachedStr = formatTokenCount(model.cachedInput ?? 0);
-    const totalInStr = formatTokenCount(model.totalInput ?? model.input + (model.cachedInput ?? 0));
+    const inStr = formatInputCell(model.input, model.cachedInput);
     const outStr = formatTokenCount(model.output);
-    if (showCached) {
-      lines.push(
-        `  ${padRight(shortName, 20)}  ${padLeft(inStr, 6)} new  ${padLeft(cachedStr, 6)} cache  ${padLeft(totalInStr, 6)} in  ${padLeft(outStr, 6)} out`,
-      );
-    } else {
-      lines.push(`  ${padRight(shortName, 20)}  ${padLeft(inStr, 6)} in  ${padLeft(outStr, 6)} out`);
-    }
+    lines.push(`  ${padRight(shortName, 20)}  ${inStr} in  ${padLeft(outStr, 6)} out`);
   }
 
   return {
@@ -71,13 +74,9 @@ function buildCompactSessionTokenSectionModel(
     const modelIndent = width > 2 ? "  " : "";
     const modelLineWidth = Math.max(1, width - modelIndent.length);
     const detailIndent = width > 4 ? "    " : width > 2 ? "  " : "";
-    const inStr = formatTokenCount(model.input);
-    const cachedStr = formatTokenCount(model.cachedInput ?? 0);
-    const totalInStr = formatTokenCount(model.totalInput ?? model.input + (model.cachedInput ?? 0));
+    const inStr = formatInputWithCache(model.input, model.cachedInput);
     const outStr = formatTokenCount(model.output);
-    const compactCounts = showCached
-      ? `${inStr} new  ${cachedStr} cache  ${totalInStr} in  ${outStr} out`
-      : `${inStr} in  ${outStr} out`;
+    const compactCounts = `${inStr} in  ${outStr} out`;
 
     lines.push(`${modelIndent}${shortenModelName(model.modelID, modelLineWidth)}`.slice(0, width));
 
@@ -86,15 +85,8 @@ function buildCompactSessionTokenSectionModel(
       continue;
     }
 
-    if (showCached) {
-      lines.push(`${detailIndent}${inStr} new`.slice(0, width));
-      lines.push(`${detailIndent}${cachedStr} cache`.slice(0, width));
-      lines.push(`${detailIndent}${totalInStr} in`.slice(0, width));
-      lines.push(`${detailIndent}${outStr} out`.slice(0, width));
-    } else {
-      lines.push(`${detailIndent}${inStr} in`.slice(0, width));
-      lines.push(`${detailIndent}${outStr} out`.slice(0, width));
-    }
+    lines.push(`${detailIndent}${inStr} in`.slice(0, width));
+    lines.push(`${detailIndent}${outStr} out`.slice(0, width));
   }
 
   return {
@@ -108,10 +100,7 @@ function buildSidebarSessionTokenSummaryModel(
   options?: { maxWidth?: number },
 ): SessionTokenSectionModel {
   const totalCached = sessionTokens.totalCachedInput ?? 0;
-  const totalCombined = sessionTokens.totalCombinedInput ?? sessionTokens.totalInput + totalCached;
-  const summaryLine = totalCached > 0
-    ? `  ${formatTokenCount(sessionTokens.totalInput)} new  ${formatTokenCount(totalCached)} cache  ${formatTokenCount(totalCombined)} in  ${formatTokenCount(sessionTokens.totalOutput)} out`
-    : `  ${formatTokenCount(sessionTokens.totalInput)} in  ${formatTokenCount(sessionTokens.totalOutput)} out`;
+  const summaryLine = `  ${formatInputWithCache(sessionTokens.totalInput, totalCached)} in  ${formatTokenCount(sessionTokens.totalOutput)} out`;
   return {
     heading: clampRenderedLine(SESSION_TOKEN_SECTION_HEADING, options?.maxWidth),
     lines: [clampRenderedLine(summaryLine, options?.maxWidth)],
