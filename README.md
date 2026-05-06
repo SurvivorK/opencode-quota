@@ -28,37 +28,36 @@ npx @slkiser/opencode-quota init
 > [!IMPORTANT]
 > OpenCode `>= 1.4.3` and Node.js `>= 18` are required.
 
-The installer appends missing plugin/config entries and preserves unrelated/custom settings. Re-running it updates installer-owned Quota UI surface flags from your current Quota UI answer.
+The installer adds missing plugin/config entries and keeps your unrelated settings. Re-running it updates only installer-owned Quota UI choices.
 
 ### What the installer asks
 
 | Question | Pick this when you want... |
 | --- | --- |
-| Install scope | Project config for this repo/worktree, or Global OpenCode config for all projects using your global config. |
-| Quota UI | Toasts, Sidebar panel, Compact status line, terminal/slash-command only, or a mix. |
-| Provider mode | Auto-detection for most users, or an explicit provider list for tighter control. |
-| Quota reset periods | One reset period per provider for compact checks, or all reset periods per provider for detailed comparisons. |
-| Quota percentage meaning | Remaining quota or used quota in toast/sidebar displays. |
-| Session token details | Hide session input/output token counts for shorter output, or show them when available. |
+| Install scope | This repo/worktree only, or your global OpenCode config. |
+| Quota UI | Sidebar panel, toasts, compact status line, terminal/slash-command only, or a mix. |
+| Provider mode | Auto-detect providers, or choose a provider list yourself. |
+| Quota reset periods | Show one reset period per provider, or all known reset periods. |
+| Quota percentage meaning | Show quota remaining, or quota already used. |
+| Session token details | Hide token counts for shorter output, or show them when available. |
 
 ### After install
 
 1. Restart OpenCode.
 2. Run `/quota`.
 3. If something looks wrong, run `/quota_status`.
-4. If you selected Sidebar panel, open the session sidebar and look for `Quota`.
-5. If you selected Compact status line, look for the home-bottom quota line.
-6. If the installer helped, starring the project is appreciated: <https://github.com/slkiser/opencode-quota>.
+4. If you enabled the Sidebar panel, open the session sidebar and look for `Quota`.
+5. If you enabled Compact status line, look for the home-bottom quota line.
 
 ### Terminal-only check
 
-Run the published package without installing the binary first:
+Run without installing the binary first:
 
 ```bash
 npx @slkiser/opencode-quota show
 ```
 
-If `opencode-quota` is already installed or on your `PATH`, you can run:
+Or, if `opencode-quota` is already on your `PATH`:
 
 ```bash
 opencode-quota show --provider copilot
@@ -66,8 +65,8 @@ opencode-quota show --provider copilot
 
 ## What you get
 
-- Popup quota toasts in OpenCode
 - A `Quota` Sidebar panel in the TUI
+- Popup quota toasts in OpenCode
 - A Compact status line in the TUI
 - `/quota` and `/quota_status` slash commands
 - Token reports such as `/tokens_today` and `/tokens_weekly`
@@ -76,15 +75,15 @@ opencode-quota show --provider copilot
 <table>
   <tr>
     <td width="50%">
-      <img src="https://shawnkiser.com/opencode-quota/toast.webp" alt="OpenCode Quota popup toast" />
+      <img src="https://shawnkiser.com/opencode-quota/sidebar.webp" alt="OpenCode Quota TUI sidebar panel" />
     </td>
     <td width="50%">
-      <img src="https://shawnkiser.com/opencode-quota/sidebar.webp" alt="OpenCode Quota TUI sidebar panel" />
+      <img src="https://shawnkiser.com/opencode-quota/toast.webp" alt="OpenCode Quota popup toast" />
     </td>
   </tr>
   <tr>
-    <td width="50%" align="center">Toast</td>
     <td width="50%" align="center">Sidebar panel</td>
+    <td width="50%" align="center">Toast</td>
   </tr>
   <tr>
     <td width="50%">
@@ -102,11 +101,15 @@ opencode-quota show --provider copilot
 
 ## Manual setup
 
-Use the installer when possible. If you prefer manual setup, add the plugin to the OpenCode config files you use.
+Use the installer when possible. For manual setup, use the same OpenCode config location you would pick in the installer:
 
-### Server plugin: slash commands, providers, and toasts (mandatory)
+- **Project install:** files live in your repo/worktree.
+- **Global install:** files live in your OpenCode config directory, usually `~/.config/opencode`.
+- If you set `OPENCODE_CONFIG_DIR`, use that directory instead.
 
-Add this to `opencode.json` or `opencode.jsonc`:
+### 1. Add the server plugin (required)
+
+This enables providers, slash commands, terminal checks, and popup toasts. Add this to `opencode.json` or `opencode.jsonc`:
 
 ```jsonc
 {
@@ -115,9 +118,9 @@ Add this to `opencode.json` or `opencode.jsonc`:
 }
 ```
 
-### TUI plugin: Sidebar panel and Compact status line
+### 2. Add the TUI plugin (for Sidebar panel or Compact status line)
 
-For UI surfaces in the TUI (Sidebar panel and Compact status line), add the same package to `tui.json` or `tui.jsonc`:
+If you want the Sidebar panel or Compact status line, also add this to `tui.json` or `tui.jsonc`:
 
 ```jsonc
 {
@@ -126,20 +129,44 @@ For UI surfaces in the TUI (Sidebar panel and Compact status line), add the same
 }
 ```
 
-The TUI plugin entry only registers UI surfaces. UI surface settings still live in quota config.
+### 3. Add quota settings
+
+Create or edit `opencode-quota/quota-toast.json` **next to the `opencode.json` / `tui.json` file above**. For a project install, that means:
+
+```text
+<your-repo>/opencode-quota/quota-toast.json
+```
+
+Start with this, then adjust the UI choices in the next section:
+
+```jsonc
+{
+  "enabledProviders": "auto",
+  "enableToast": true,
+  "tuiSidebarPanel": {
+    "enabled": true,
+  },
+  "tuiCompactStatus": {
+    "enabled": false,
+  },
+}
+```
+
+> [!TIP]
+> Run `/quota_status` to see the exact config paths OpenCode Quota loaded.
 
 ## Choose your UI surfaces
 
-All quota UI surfaces share the same provider data. You can enable one UI surface or several.
+All UI surfaces use the same quota data. Put these settings in `opencode-quota/quota-toast.json`, not `tui.json`.
 
 | UI surface | Config | Notes |
 | --- | --- | --- |
-| Toast | `enableToast: true` | Popup toast after idle/question/compact events. |
-| Sidebar panel | `tuiSidebarPanel.enabled: true` | Full `Quota` panel in OpenCode's session sidebar. Default is `true` for backward compatibility when the TUI plugin is installed. |
-| Compact status line | `tuiCompactStatus.enabled: true` | Short text-only quota line in TUI status locations, for example `Copilot 94% | OpenAI Pro 5h 100%, 7d 100%`. |
+| Sidebar panel | `tuiSidebarPanel.enabled: true` | Full `Quota` panel in OpenCode's session sidebar. Requires the TUI plugin entry above. |
+| Toast | `enableToast: true` | Popup toast after idle/question/compact events. Requires the server plugin entry above. |
+| Compact status line | `tuiCompactStatus.enabled: true` | Short text-only quota line in TUI status locations, for example `Copilot 94% | OpenAI Pro 5h 100%, 7d 100%`. Requires the TUI plugin entry above. |
 | Terminal/slash only | `enableToast: false`, `tuiSidebarPanel.enabled: false`, `tuiCompactStatus.enabled: false` | Keeps `/quota`, `/quota_status`, and terminal checks. |
 
-For examples and all UI surface options, see [Common configuration](#common-configuration) and [Full configuration reference](#full-configuration-reference).
+For more examples, see [Common configuration](#common-configuration). For every option, see [Full configuration reference](#full-configuration-reference).
 
 ## Commands
 
@@ -183,7 +210,15 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 
 ## Common configuration
 
-Customize these settings in `opencode-quota/quota-toast.json`.
+Customize these settings in `opencode-quota/quota-toast.json`, next to the OpenCode config for your install scope.
+
+Common locations:
+
+- Project install: `<your-repo>/opencode-quota/quota-toast.json`
+- Global install: usually `~/.config/opencode/opencode-quota/quota-toast.json`
+- Custom config dir: `$OPENCODE_CONFIG_DIR/opencode-quota/quota-toast.json`
+
+If you are unsure, run `/quota_status`; it prints the config path it loaded.
 
 <details>
 <summary><strong>Choose providers explicitly</strong></summary>
@@ -272,7 +307,7 @@ This is only for users who intentionally want `experimental.quotaToast` mirrored
 
 ## Full configuration reference
 
-Settings go in `opencode-quota/quota-toast.json` next to the OpenCode config file you chose during install.
+Settings go in the same `opencode-quota/quota-toast.json` sidecar described above.
 
 Existing `experimental.quotaToast` settings still work when no sidecar file exists. Quota settings do not live in `tui.json`.
 
