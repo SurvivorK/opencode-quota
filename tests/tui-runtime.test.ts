@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { collectQuotaRenderData, buildSidebarQuotaPanelLines } = vi.hoisted(() => ({
-  collectQuotaRenderData: vi.fn(),
-  buildSidebarQuotaPanelLines: vi.fn(),
-}));
+const { collectQuotaRenderData, buildCompactQuotaStatusLine, buildSidebarQuotaPanelLines } = vi.hoisted(
+  () => ({
+    collectQuotaRenderData: vi.fn(),
+    buildCompactQuotaStatusLine: vi.fn(),
+    buildSidebarQuotaPanelLines: vi.fn(),
+  }),
+);
 
 vi.mock("../src/lib/quota-render-data.js", async () => {
   const actual = await vi.importActual<typeof import("../src/lib/quota-render-data.js")>(
@@ -28,9 +31,23 @@ vi.mock("../src/lib/tui-sidebar-format.js", async () => {
   };
 });
 
+vi.mock("../src/lib/tui-compact-format.js", async () => {
+  const actual = await vi.importActual<typeof import("../src/lib/tui-compact-format.js")>(
+    "../src/lib/tui-compact-format.js",
+  );
+  return {
+    ...actual,
+    buildCompactQuotaStatusLine,
+  };
+});
+
 import {
   getTuiSessionModelMeta,
   loadSidebarPanel,
+  loadTuiHomeCompactStatus,
+  loadTuiSessionQuotaSurfaces,
+  resolveTuiCompactStatusRegistration,
+  resolveTuiSurfaceRegistration,
   resolveWorkspaceDir,
 } from "../src/lib/tui-runtime.js";
 
@@ -59,6 +76,7 @@ describe("tui runtime helpers", () => {
     delete process.env.OPENCODE_CONFIG_DIR;
 
     collectQuotaRenderData.mockReset();
+    buildCompactQuotaStatusLine.mockReset();
     buildSidebarQuotaPanelLines.mockReset();
   });
 
@@ -643,5 +661,532 @@ describe("tui runtime helpers", () => {
       providerID: "cursor",
       modelID: "claude-3.7-sonnet",
     });
+  });
+
+  it("resolves compact registration and suppresses native provider quota clients", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              sessionPrompt: true,
+              suppressWhenNativeProviderQuota: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const registration = await resolveTuiCompactStatusRegistration({
+      state: {
+        provider: [],
+        path: {
+          worktree: worktreeDir,
+          directory: nestedDir,
+        },
+        session: {
+          messages: () => [],
+        },
+      },
+      client: {
+        experimental: {
+          providerQuota: {},
+        },
+      },
+    } as any);
+
+    expect(registration).toEqual({
+      enabled: false,
+      homeBottom: false,
+      sessionPrompt: false,
+      hasNativeProviderQuota: true,
+      suppressedByNativeProviderQuota: true,
+    });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+  });
+
+  it("resolves sidebar independently from compact native-provider suppression", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiSidebarPanel: {
+              enabled: true,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              sessionPrompt: true,
+              suppressWhenNativeProviderQuota: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const registration = await resolveTuiSurfaceRegistration({
+      state: {
+        provider: [],
+        path: {
+          worktree: worktreeDir,
+          directory: nestedDir,
+        },
+        session: {
+          messages: () => [],
+        },
+      },
+      client: {
+        experimental: {
+          providerQuota: {},
+        },
+      },
+    } as any);
+
+    expect(registration).toEqual({
+      sidebar: {
+        enabled: true,
+      },
+      compact: {
+        enabled: false,
+        homeBottom: false,
+        sessionPrompt: false,
+        hasNativeProviderQuota: true,
+        suppressedByNativeProviderQuota: true,
+      },
+    });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+  });
+
+  it("loads compact session surface while returning disabled sidebar when sidebar config is off", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            percentDisplayMode: "used",
+            tuiSidebarPanel: {
+              enabled: false,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+              maxWidth: 42,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const data = {
+      entries: [
+        {
+          name: "Copilot 5h",
+          percentRemaining: 18,
+        },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({ data });
+    buildSidebarQuotaPanelLines.mockReturnValue(["Sidebar quota"]);
+    buildCompactQuotaStatusLine.mockReturnValue("Compact quota");
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      sessionID: "compact-sidebar-off",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "disabled", lines: [] },
+      compact: { status: "ready", text: "Compact quota" },
+    });
+    expect(collectQuotaRenderData).toHaveBeenCalledOnce();
+    expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith({
+      data,
+      percentDisplayMode: "used",
+      maxWidth: 42,
+    });
+  });
+
+  it("skips session quota collection when sidebar and session compact are disabled", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiSidebarPanel: {
+              enabled: false,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: false,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      sessionID: "all-session-surfaces-off",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "disabled", lines: [] },
+      compact: { status: "disabled" },
+    });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+    expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
+    expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
+  });
+
+  it("loads sidebar and compact session surfaces from one collection", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            percentDisplayMode: "used",
+            onlyCurrentModel: true,
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+              maxWidth: 42,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const data = {
+      entries: [
+        {
+          name: "Copilot 5h",
+          percentRemaining: 18,
+        },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({ data });
+    buildSidebarQuotaPanelLines.mockReturnValue(["Sidebar quota"]);
+    buildCompactQuotaStatusLine.mockReturnValue("Compact quota");
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {
+          session: {
+            get: vi.fn().mockResolvedValue({
+              data: {
+                providerID: "copilot",
+                modelID: "gpt-4.1",
+              },
+            }),
+          },
+        },
+      } as any,
+      sessionID: "compact-session",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "ready", lines: ["Sidebar quota"] },
+      compact: { status: "ready", text: "Compact quota" },
+    });
+    expect(collectQuotaRenderData).toHaveBeenCalledOnce();
+    expect(collectQuotaRenderData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surfaceExplicitProviderIssues: true,
+        config: expect.objectContaining({
+          onlyCurrentModel: true,
+          percentDisplayMode: "used",
+        }),
+        request: expect.objectContaining({
+          sessionID: "compact-session",
+          sessionMeta: {
+            providerID: "copilot",
+            modelID: "gpt-4.1",
+          },
+        }),
+      }),
+    );
+    expect(buildSidebarQuotaPanelLines).toHaveBeenCalledWith({
+      data,
+      config: expect.objectContaining({
+        percentDisplayMode: "used",
+      }),
+    });
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith({
+      data,
+      percentDisplayMode: "used",
+      maxWidth: 42,
+    });
+  });
+
+  it("uses compact fallback text when session collection has no data", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    collectQuotaRenderData.mockResolvedValue({ data: null });
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      sessionID: "compact-no-data",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "ready", lines: [] },
+      compact: { status: "ready", text: "Quota unavailable" },
+    });
+    expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
+  });
+
+  it("marks both session surfaces loading while waiting for current selection", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            onlyCurrentModel: true,
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    collectQuotaRenderData.mockResolvedValue({
+      selection: {
+        waitingForCurrentSelection: true,
+      },
+      data: null,
+    });
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {
+          session: {
+            get: vi.fn().mockResolvedValue({ data: {} }),
+          },
+        },
+      } as any,
+      sessionID: "waiting-session",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "loading", lines: [] },
+      compact: { status: "loading" },
+    });
+    expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
+    expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
+  });
+
+  it("uses compact fallback text when home compact formatting returns empty", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const data = {
+      entries: [],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({ data });
+    buildCompactQuotaStatusLine.mockReturnValue("");
+
+    const compact = await loadTuiHomeCompactStatus({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+    });
+
+    expect(compact).toEqual({ status: "ready", text: "Quota unavailable" });
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith({
+      data,
+      percentDisplayMode: "remaining",
+      maxWidth: 96,
+    });
+  });
+
+  it("loads home compact with an onlyCurrentModel false config copy", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            onlyCurrentModel: true,
+            showSessionTokens: true,
+            percentDisplayMode: "used",
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              maxWidth: 40,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const data = {
+      entries: [
+        {
+          name: "Copilot 5h",
+          percentRemaining: 25,
+        },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockImplementation(async ({ config, request }) => {
+      expect(config).toEqual(
+        expect.objectContaining({
+          onlyCurrentModel: false,
+          showSessionTokens: false,
+          percentDisplayMode: "used",
+        }),
+      );
+      expect(request).toEqual({
+        sessionID: undefined,
+        sessionMeta: undefined,
+      });
+      return { data };
+    });
+    buildCompactQuotaStatusLine.mockReturnValue("Home compact quota");
+
+    const compact = await loadTuiHomeCompactStatus({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+    });
+
+    expect(compact).toEqual({ status: "ready", text: "Home compact quota" });
+    expect(collectQuotaRenderData).toHaveBeenCalledOnce();
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith({
+      data,
+      percentDisplayMode: "used",
+      maxWidth: 40,
+    });
+    expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
   });
 });

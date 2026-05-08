@@ -253,6 +253,104 @@ describe("loadConfig layered precedence", () => {
     );
   });
 
+  it("merges tuiSidebarPanel enabled per layer and ignores invalid workspace fields", async () => {
+    writeFileSync(
+      join(xdgConfigHome, "opencode", "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            tuiSidebarPanel: {
+              enabled: false,
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    writeFileSync(
+      join(workspaceDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            tuiSidebarPanel: {
+              enabled: "yes",
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    const meta = createLoadConfigMeta();
+    const cfg = await loadConfig(undefined, meta, { cwd: workspaceDir });
+
+    expect(cfg.tuiSidebarPanel).toEqual({ enabled: false });
+    expect(meta.settingSources["tuiSidebarPanel.enabled"]).toBe(
+      quotaConfigSource(join(xdgConfigHome, "opencode")),
+    );
+  });
+
+  it("merges tuiCompactStatus per field and ignores invalid workspace fields", async () => {
+    writeFileSync(
+      join(xdgConfigHome, "opencode", "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: false,
+              maxWidth: 80,
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    writeFileSync(
+      join(workspaceDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            tuiCompactStatus: {
+              homeBottom: false,
+              suppressWhenNativeProviderQuota: false,
+              maxWidth: 0,
+            },
+          },
+        },
+      }),
+      "utf-8",
+    );
+
+    const meta = createLoadConfigMeta();
+    const cfg = await loadConfig(undefined, meta, { cwd: workspaceDir });
+
+    expect(cfg.tuiCompactStatus).toEqual({
+      enabled: true,
+      homeBottom: false,
+      sessionPrompt: false,
+      suppressWhenNativeProviderQuota: false,
+      maxWidth: 80,
+    });
+    expect(meta.settingSources["tuiCompactStatus.enabled"]).toBe(
+      quotaConfigSource(join(xdgConfigHome, "opencode")),
+    );
+    expect(meta.settingSources["tuiCompactStatus.sessionPrompt"]).toBe(
+      quotaConfigSource(join(xdgConfigHome, "opencode")),
+    );
+    expect(meta.settingSources["tuiCompactStatus.maxWidth"]).toBe(
+      quotaConfigSource(join(xdgConfigHome, "opencode")),
+    );
+    expect(meta.settingSources["tuiCompactStatus.homeBottom"]).toBe(
+      quotaConfigSource(workspaceDir),
+    );
+    expect(meta.settingSources["tuiCompactStatus.suppressWhenNativeProviderQuota"]).toBe(
+      quotaConfigSource(workspaceDir),
+    );
+  });
+
   it("preserves the previous valid layer when workspace values are invalid", async () => {
     writeFileSync(
       join(xdgConfigHome, "opencode", "opencode.json"),

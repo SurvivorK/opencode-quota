@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { formatQuotaRows } from "../src/lib/format.js";
+import { buildSingleWindowPercentEntryDisplayName } from "../src/lib/quota-entry-display.js";
 import { SESSION_TOKEN_SECTION_HEADING } from "../src/lib/session-tokens-format.js";
 
 describe("formatQuotaRows", () => {
@@ -257,6 +258,25 @@ describe("formatQuotaRows", () => {
     expect(out).toContain("Usage:");
     expect(out).toContain("9 used | 2026-01 | org=acme-corp");
     expect(out).not.toContain("Quota window");
+  });
+
+  it("shares single-window provider/window display labels with classic formatting", () => {
+    expect(
+      buildSingleWindowPercentEntryDisplayName({
+        name: "Copilot",
+        group: "Copilot (personal)",
+        label: "Monthly:",
+        percentRemaining: 86,
+      }),
+    ).toBe("[Copilot] (personal) Monthly");
+
+    expect(
+      buildSingleWindowPercentEntryDisplayName({
+        name: "[Copilot] (personal) Monthly",
+        label: "Monthly:",
+        percentRemaining: 86,
+      }),
+    ).toBe("[Copilot] (personal) Monthly");
   });
 
   it("renders grouped-header provider + window label in direct single-window formatter calls", () => {

@@ -1,7 +1,8 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
-import type { SidebarPanelState } from "./tui-panel-state.js";
+import type { CompactStatusState, SidebarPanelState } from "./tui-panel-state.js";
 
-import type { SessionModelMeta } from "./quota-render-data.js";
+import type { CollectQuotaRenderDataResult, SessionModelMeta } from "./quota-render-data.js";
+import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
 
 import {
   resolveRuntimeContextRoots,
@@ -10,7 +11,11 @@ import {
 import { createQuotaRuntimeRequestContext, resolveQuotaRuntimeContext } from "./quota-runtime-context.js";
 import { collectQuotaRenderData } from "./quota-render-data.js";
 import { resolveQuotaFormatStyle } from "./quota-format-style.js";
+import { buildCompactQuotaStatusLine } from "./tui-compact-format.js";
+import { hasNativeProviderQuotaClient } from "./tui-native-provider-quota.js";
 import { buildSidebarQuotaPanelLines } from "./tui-sidebar-format.js";
+
+const COMPACT_UNAVAILABLE_TEXT = "Quota unavailable";
 
 function getTuiRuntimeRootHints(api: TuiPluginApi): RuntimeContextRootHints {
   return {
@@ -102,10 +107,156 @@ export async function getTuiSessionModelMeta(
   return getMessageSessionModelMeta(api, sessionID);
 }
 
-export async function loadSidebarPanel(params: {
+export type TuiSidebarPanelRegistration = {
+  enabled: boolean;
+};
+
+export type TuiCompactStatusRegistration = {
+  enabled: boolean;
+  homeBottom: boolean;
+  sessionPrompt: boolean;
+  hasNativeProviderQuota: boolean;
+  suppressedByNativeProviderQuota: boolean;
+};
+
+export type TuiSurfaceRegistration = {
+  sidebar: TuiSidebarPanelRegistration;
+  compact: TuiCompactStatusRegistration;
+};
+
+export type TuiSessionQuotaSurfaces = {
+  sidebar: SidebarPanelState;
+  compact: CompactStatusState;
+};
+
+function isSessionSidebarEnabled(runtime: QuotaRuntimeContext): boolean {
+  return runtime.config.enabled && runtime.config.tuiSidebarPanel.enabled;
+}
+
+function isSessionCompactEnabled(runtime: QuotaRuntimeContext): boolean {
+  return (
+    runtime.config.enabled &&
+    runtime.config.tuiCompactStatus.enabled &&
+    runtime.config.tuiCompactStatus.sessionPrompt
+  );
+}
+
+function buildDisabledSessionQuotaSurfaces(): TuiSessionQuotaSurfaces {
+  return {
+    sidebar: { status: "disabled", lines: [] },
+    compact: { status: "disabled" },
+  };
+}
+
+function buildCompactStatusFromData(params: {
+  runtime: QuotaRuntimeContext;
+  result: CollectQuotaRenderDataResult;
+  enabled: boolean;
+  maxWidth?: number;
+}): CompactStatusState {
+  if (!params.enabled) return { status: "disabled" };
+
+  if (params.result.selection?.waitingForCurrentSelection) {
+    return { status: "loading" };
+  }
+
+  const text = params.result.data
+    ? buildCompactQuotaStatusLine({
+        data: params.result.data,
+        percentDisplayMode: params.runtime.config.percentDisplayMode,
+        maxWidth: params.maxWidth ?? params.runtime.config.tuiCompactStatus.maxWidth,
+      })
+    : "";
+
+  return {
+    status: "ready",
+    text: text.trim() ? text : COMPACT_UNAVAILABLE_TEXT,
+  };
+}
+
+function buildSidebarPanelFromData(params: {
+  runtime: QuotaRuntimeContext;
+  result: CollectQuotaRenderDataResult;
+  formatStyle: ReturnType<typeof resolveQuotaFormatStyle>;
+}): SidebarPanelState {
+  if (params.result.selection?.waitingForCurrentSelection) {
+    return {
+      status: "loading",
+      lines: [],
+    };
+  }
+
+  return {
+    status: "ready",
+    lines: params.result.data
+      ? buildSidebarQuotaPanelLines({
+          data: params.result.data,
+          config: { ...params.runtime.config, formatStyle: params.formatStyle },
+        })
+      : [],
+  };
+}
+
+async function collectTuiQuotaRenderData(params: {
+  runtime: QuotaRuntimeContext;
+  request: ReturnType<typeof createQuotaRuntimeRequestContext>;
+}): Promise<{
+  result: CollectQuotaRenderDataResult;
+  formatStyle: ReturnType<typeof resolveQuotaFormatStyle>;
+}> {
+  const formatStyle = resolveQuotaFormatStyle(params.runtime.config.formatStyle);
+  const result = await collectQuotaRenderData({
+    client: params.runtime.client,
+    config: params.runtime.config,
+    configMeta: params.runtime.configMeta,
+    request: params.request,
+    surfaceExplicitProviderIssues: true,
+    formatStyle,
+    providers: params.runtime.providers,
+  });
+
+  return { result, formatStyle };
+}
+
+export async function resolveTuiSurfaceRegistration(
+  api: TuiPluginApi,
+): Promise<TuiSurfaceRegistration> {
+  const quotaClient = createTuiQuotaClient(api);
+  const runtime = await resolveQuotaRuntimeContext({
+    client: quotaClient,
+    roots: getTuiRuntimeRootHints(api),
+  });
+  const compact = runtime.config.tuiCompactStatus;
+  const hasNativeProviderQuota = hasNativeProviderQuotaClient(api.client);
+  const suppressedByNativeProviderQuota =
+    compact.suppressWhenNativeProviderQuota && hasNativeProviderQuota;
+  const compactEnabled =
+    runtime.config.enabled && compact.enabled && !suppressedByNativeProviderQuota;
+
+  return {
+    sidebar: {
+      enabled: runtime.config.enabled && runtime.config.tuiSidebarPanel.enabled,
+    },
+    compact: {
+      enabled: compactEnabled,
+      homeBottom: compactEnabled && compact.homeBottom,
+      sessionPrompt: compactEnabled && compact.sessionPrompt,
+      hasNativeProviderQuota,
+      suppressedByNativeProviderQuota,
+    },
+  };
+}
+
+export async function resolveTuiCompactStatusRegistration(
+  api: TuiPluginApi,
+): Promise<TuiCompactStatusRegistration> {
+  return (await resolveTuiSurfaceRegistration(api)).compact;
+}
+
+export async function loadTuiSessionQuotaSurfaces(params: {
   api: TuiPluginApi;
   sessionID: string;
-}): Promise<SidebarPanelState> {
+}): Promise<TuiSessionQuotaSurfaces> {
   const quotaClient = createTuiQuotaClient(params.api);
   const runtime = await resolveQuotaRuntimeContext({
     client: quotaClient,
@@ -115,39 +266,72 @@ export async function loadSidebarPanel(params: {
     includeSessionMeta: (config) => config.onlyCurrentModel,
   });
 
-  if (!runtime.config.enabled) {
-    return {
-      status: "disabled",
-      lines: [],
-    };
+  const sidebarEnabled = isSessionSidebarEnabled(runtime);
+  const compactEnabled = isSessionCompactEnabled(runtime);
+
+  if (!sidebarEnabled && !compactEnabled) {
+    return buildDisabledSessionQuotaSurfaces();
   }
 
-  const request = createQuotaRuntimeRequestContext(runtime);
-  const formatStyle = resolveQuotaFormatStyle(runtime.config.formatStyle);
-  const result = await collectQuotaRenderData({
-    client: runtime.client,
-    config: runtime.config,
-    configMeta: runtime.configMeta,
-    request,
-    surfaceExplicitProviderIssues: true,
-    formatStyle,
-    providers: runtime.providers,
+  const { result, formatStyle } = await collectTuiQuotaRenderData({
+    runtime,
+    request: createQuotaRuntimeRequestContext(runtime),
   });
 
-  if (result.selection?.waitingForCurrentSelection) {
-    return {
-      status: "loading",
-      lines: [],
-    };
+  return {
+    sidebar: sidebarEnabled
+      ? buildSidebarPanelFromData({ runtime, result, formatStyle })
+      : { status: "disabled", lines: [] },
+    compact: buildCompactStatusFromData({
+      runtime,
+      result,
+      enabled: compactEnabled,
+    }),
+  };
+}
+
+export async function loadTuiHomeCompactStatus(params: {
+  api: TuiPluginApi;
+}): Promise<CompactStatusState> {
+  const quotaClient = createTuiQuotaClient(params.api);
+  const runtime = await resolveQuotaRuntimeContext({
+    client: quotaClient,
+    roots: getTuiRuntimeRootHints(params.api),
+  });
+
+  if (
+    !runtime.config.enabled ||
+    !runtime.config.tuiCompactStatus.enabled ||
+    !runtime.config.tuiCompactStatus.homeBottom
+  ) {
+    return { status: "disabled" };
   }
 
-  return {
-    status: "ready",
-    lines: result.data
-      ? buildSidebarQuotaPanelLines({
-          data: result.data,
-          config: { ...runtime.config, formatStyle },
-        })
-      : [],
+  const homeRuntime: QuotaRuntimeContext = {
+    ...runtime,
+    config: {
+      ...runtime.config,
+      onlyCurrentModel: false,
+      showSessionTokens: false,
+    },
+    session: {},
   };
+
+  const { result } = await collectTuiQuotaRenderData({
+    runtime: homeRuntime,
+    request: createQuotaRuntimeRequestContext(homeRuntime),
+  });
+
+  return buildCompactStatusFromData({
+    runtime: homeRuntime,
+    result,
+    enabled: true,
+  });
+}
+
+export async function loadSidebarPanel(params: {
+  api: TuiPluginApi;
+  sessionID: string;
+}): Promise<SidebarPanelState> {
+  return (await loadTuiSessionQuotaSurfaces(params)).sidebar;
 }

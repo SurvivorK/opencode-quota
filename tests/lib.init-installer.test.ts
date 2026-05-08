@@ -23,12 +23,23 @@ function createPromptStub(params: {
   const selectValues = [...(params.selectValues ?? [])];
   const multiselectValues = [...(params.multiselectValues ?? [])];
   const confirmValues = [...(params.confirmValues ?? [])];
+  const selectCalls: { message: string; options: unknown[] }[] = [];
+  const multiselectCalls: { message: string; required?: boolean; options: unknown[] }[] = [];
+  const outroCalls: string[] = [];
 
   return {
     intro: () => {},
-    outro: () => {},
-    select: async () => selectValues.shift(),
-    multiselect: async () => multiselectValues.shift(),
+    outro: (message: string) => {
+      outroCalls.push(message);
+    },
+    select: async (options: { message: string; options: unknown[] }) => {
+      selectCalls.push(options);
+      return selectValues.shift();
+    },
+    multiselect: async (options: { message: string; required?: boolean; options: unknown[] }) => {
+      multiselectCalls.push(options);
+      return multiselectValues.shift();
+    },
     confirm: async () => confirmValues.shift(),
     isCancel: (value: unknown) => value === Symbol.for("cancel"),
     log: {
@@ -36,6 +47,9 @@ function createPromptStub(params: {
       success: () => {},
       error: () => {},
     },
+    selectCalls,
+    multiselectCalls,
+    outroCalls,
   };
 }
 
@@ -60,7 +74,7 @@ describe("init installer planning and merge behavior", () => {
       cwd: nestedDir,
       selections: {
         scope: "project",
-        quotaUi: "toast",
+        quotaUi: ["toast"],
         providerMode: "manual",
         manualProviders: ["openai", "anthropic"],
         formatStyle: "allWindows",
@@ -111,7 +125,7 @@ describe("init installer planning and merge behavior", () => {
       syncLegacyConfig: true,
       selections: {
         scope: "project",
-        quotaUi: "toast",
+        quotaUi: ["toast"],
         providerMode: "manual",
         manualProviders: ["openai"],
         formatStyle: "allWindows",
@@ -182,7 +196,7 @@ describe("init installer planning and merge behavior", () => {
       cwd: projectDir,
       selections: {
         scope: "project",
-        quotaUi: "sidebar",
+        quotaUi: ["sidebar"],
         providerMode: "manual",
         manualProviders: ["cursor", "opencode-go"],
         formatStyle: "singleWindow",
@@ -213,9 +227,9 @@ describe("init installer planning and merge behavior", () => {
         "quotaToast.percentDisplayMode",
       ]),
     );
+    expect(quotaEdit?.updatedKeys).toContain("quotaToast.enableToast");
     expect(quotaEdit?.skippedValues).toEqual(
       expect.arrayContaining([
-        "quotaToast.enableToast preserved existing value",
         "quotaToast.showSessionTokens preserved existing value",
         "quotaToast.enabledProviders preserved existing value",
       ]),
@@ -240,7 +254,7 @@ describe("init installer planning and merge behavior", () => {
       toastStyle: "grouped",
       formatStyle: "allWindows",
       percentDisplayMode: "remaining",
-      enableToast: true,
+      enableToast: false,
       showSessionTokens: true,
       enabledProviders: ["openai"],
     });
@@ -268,7 +282,7 @@ describe("init installer planning and merge behavior", () => {
       cwd: projectDir,
       selections: {
         scope: "project",
-        quotaUi: "toast",
+        quotaUi: ["toast"],
         providerMode: "auto",
         manualProviders: [],
         formatStyle: "singleWindow",
@@ -289,6 +303,41 @@ describe("init installer planning and merge behavior", () => {
     ]);
   });
 
+  it("writes sidebar disabled when selected UI omits sidebar and tui config already has the plugin", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    writeFileSync(
+      join(projectDir, "tui.json"),
+      JSON.stringify({
+        plugin: ["@slkiser/opencode-quota"],
+      }),
+      "utf8",
+    );
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["toast"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    expect(plan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota"]);
+
+    await applyInitInstallerPlan(plan);
+
+    const tui = readJson(join(projectDir, "tui.json"));
+    expect(tui).toEqual({ plugin: ["@slkiser/opencode-quota"] });
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: false });
+  });
+
   it("adds the tui plugin when tui config only references the server entrypoint", async () => {
     const projectDir = join(tempDir, "project");
     mkdirSync(projectDir, { recursive: true });
@@ -305,7 +354,7 @@ describe("init installer planning and merge behavior", () => {
       cwd: projectDir,
       selections: {
         scope: "project",
-        quotaUi: "sidebar",
+        quotaUi: ["sidebar"],
         providerMode: "auto",
         manualProviders: [],
         formatStyle: "singleWindow",
@@ -334,7 +383,7 @@ describe("init installer planning and merge behavior", () => {
       cwd: projectDir,
       selections: {
         scope: "project",
-        quotaUi: "sidebar",
+        quotaUi: ["sidebar"],
         providerMode: "auto",
         manualProviders: [],
         formatStyle: "singleWindow",
@@ -359,6 +408,7 @@ describe("init installer planning and merge behavior", () => {
       formatStyle: "singleWindow",
       percentDisplayMode: "remaining",
       showSessionTokens: true,
+      tuiSidebarPanel: { enabled: true },
     });
     expect(tui).toEqual({
       $schema: "https://opencode.ai/tui.json",
@@ -366,7 +416,179 @@ describe("init installer planning and merge behavior", () => {
     });
   });
 
-  it("creates both opencode and tui targets for toast + sidebar mode with popup toasts enabled", async () => {
+  it("leaves compact TUI status alone when not selected for fresh sidebar installs", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["sidebar"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    expect(plan.summaryLines).not.toContain("Compact status mode: Home bottom + session prompt");
+    expect(plan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota", "tui"]);
+
+    await applyInitInstallerPlan(plan);
+
+    expect(existsSync(join(projectDir, "opencode.json"))).toBe(true);
+    expect(existsSync(join(projectDir, "tui.json"))).toBe(true);
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: true });
+    expect(quotaConfig.tuiCompactStatus).toBeUndefined();
+  });
+
+  it("writes compact TUI config when compact status is selected", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["sidebar", "compact_status"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    expect(plan.summaryLines).toContain("Quota UI: Sidebar + Compact status");
+    expect(plan.summaryLines).toContain("Compact status mode: Home bottom + session prompt");
+
+    await applyInitInstallerPlan(plan);
+
+    expect(existsSync(join(projectDir, "tui.json"))).toBe(true);
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: true });
+    expect(quotaConfig.tuiCompactStatus).toEqual({
+      enabled: true,
+      homeBottom: true,
+      sessionPrompt: true,
+      suppressWhenNativeProviderQuota: true,
+    });
+  });
+
+  it("keeps compact-only selection independent from sidebar", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["compact_status"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    expect(plan.selections.quotaUi).toEqual(["compact_status"]);
+    expect(plan.summaryLines).toContain("Quota UI: Compact status");
+    expect(plan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota", "tui"]);
+
+    await applyInitInstallerPlan(plan);
+
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.enableToast).toBe(false);
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: false });
+    expect(quotaConfig.tuiCompactStatus).toEqual({
+      enabled: true,
+      homeBottom: true,
+      sessionPrompt: true,
+      suppressWhenNativeProviderQuota: true,
+    });
+  });
+
+  it("updates existing sidebar enabled value for compact-only selection", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(join(projectDir, "opencode-quota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "opencode-quota", "quota-toast.json"),
+      JSON.stringify({
+        enableToast: false,
+        enabledProviders: "auto",
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+        tuiSidebarPanel: {
+          enabled: true,
+        },
+      }),
+      "utf8",
+    );
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["compact_status"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    const quotaEdit = plan.edits.find((edit) => edit.kind === "quota");
+    expect(quotaEdit?.updatedKeys).toContain("quotaToast.tuiSidebarPanel.enabled");
+    expect(quotaEdit?.skippedValues).not.toContain(
+      "quotaToast.tuiSidebarPanel.enabled preserved existing value",
+    );
+
+    await applyInitInstallerPlan(plan);
+
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: false });
+    expect(quotaConfig.tuiCompactStatus).toMatchObject({ enabled: true });
+  });
+
+  it("normalizes empty and mixed none quota UI choices defensively", async () => {
+    const emptyPlan = await planInitInstaller({
+      cwd: tempDir,
+      selections: {
+        scope: "project",
+        quotaUi: [],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+    expect(emptyPlan.selections.quotaUi).toEqual(["none"]);
+    expect(emptyPlan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota"]);
+
+    const mixedNonePlan = await planInitInstaller({
+      cwd: tempDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["none", "toast", "sidebar"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+    expect(mixedNonePlan.selections.quotaUi).toEqual(["toast", "sidebar"]);
+    expect(mixedNonePlan.summaryLines).toContain("Quota UI: Toast + Sidebar");
+  });
+
+  it("normalizes legacy quota UI strings defensively", async () => {
     const projectDir = join(tempDir, "project");
     mkdirSync(projectDir, { recursive: true });
 
@@ -380,12 +602,270 @@ describe("init installer planning and merge behavior", () => {
         formatStyle: "singleWindow",
         percentDisplayMode: "remaining",
         showSessionTokens: true,
+      } as any,
+    });
+
+    expect(plan.selections.quotaUi).toEqual(["toast", "sidebar"]);
+    expect(plan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota", "tui"]);
+
+    await applyInitInstallerPlan(plan);
+
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.enableToast).toBe(true);
+  });
+
+  it("maps legacy compact session-prompt config to compact sync when requested", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      syncLegacyConfig: true,
+      selections: {
+        scope: "project",
+        quotaUi: ["toast", "sidebar"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+        tuiCompactStatus: "home_bottom_session_prompt",
+      } as any,
+    });
+
+    expect(plan.warnings).not.toContain(
+      "sessionPrompt wraps OpenCode's core prompt slot and may conflict with other prompt-slot integrations.",
+    );
+    expect(plan.summaryLines).toContain("Compact status mode: Home bottom + session prompt");
+
+    await applyInitInstallerPlan(plan);
+
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    const opencode = readJson(join(projectDir, "opencode.json"));
+    expect(quotaConfig.tuiCompactStatus.sessionPrompt).toBe(true);
+    expect(opencode.experimental.quotaToast.tuiCompactStatus).toEqual(quotaConfig.tuiCompactStatus);
+  });
+
+  it("updates installer-owned compact config values and preserves custom fields", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(join(projectDir, "opencode-quota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "opencode-quota", "quota-toast.json"),
+      JSON.stringify({
+        enableToast: false,
+        enabledProviders: "auto",
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+        tuiSidebarPanel: {
+          enabled: false,
+        },
+        tuiCompactStatus: {
+          enabled: false,
+          sessionPrompt: false,
+          maxWidth: 40,
+        },
+      }),
+      "utf8",
+    );
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["toast", "sidebar", "compact_status"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    const quotaEdit = plan.edits.find((edit) => edit.kind === "quota");
+    expect(quotaEdit?.addedKeys).toEqual(
+      expect.arrayContaining([
+        "quotaToast.tuiCompactStatus.homeBottom",
+        "quotaToast.tuiCompactStatus.suppressWhenNativeProviderQuota",
+      ]),
+    );
+    expect(quotaEdit?.updatedKeys).toEqual(
+      expect.arrayContaining([
+        "quotaToast.enableToast",
+        "quotaToast.tuiSidebarPanel.enabled",
+        "quotaToast.tuiCompactStatus.enabled",
+        "quotaToast.tuiCompactStatus.sessionPrompt",
+      ]),
+    );
+    expect(quotaEdit?.skippedValues).not.toEqual(
+      expect.arrayContaining([
+        "quotaToast.enableToast preserved existing value",
+        "quotaToast.tuiSidebarPanel.enabled preserved existing value",
+        "quotaToast.tuiCompactStatus.enabled preserved existing value",
+        "quotaToast.tuiCompactStatus.sessionPrompt preserved existing value",
+      ]),
+    );
+
+    await applyInitInstallerPlan(plan);
+
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.enableToast).toBe(true);
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: true });
+    expect(quotaConfig.tuiCompactStatus).toEqual({
+      enabled: true,
+      sessionPrompt: true,
+      maxWidth: 40,
+      homeBottom: true,
+      suppressWhenNativeProviderQuota: true,
+    });
+  });
+
+  it("disables deselected existing UI surfaces without adding compact safety fields", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(join(projectDir, "opencode-quota"), { recursive: true });
+    writeFileSync(
+      join(projectDir, "opencode-quota", "quota-toast.json"),
+      JSON.stringify({
+        enableToast: true,
+        enabledProviders: "auto",
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+        tuiSidebarPanel: {
+          enabled: true,
+        },
+        tuiCompactStatus: {
+          enabled: true,
+          sessionPrompt: true,
+        },
+      }),
+      "utf8",
+    );
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["none"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+      },
+    });
+
+    const quotaEdit = plan.edits.find((edit) => edit.kind === "quota");
+    expect(quotaEdit?.addedKeys).not.toEqual(
+      expect.arrayContaining([
+        "quotaToast.tuiCompactStatus.homeBottom",
+        "quotaToast.tuiCompactStatus.suppressWhenNativeProviderQuota",
+      ]),
+    );
+    expect(quotaEdit?.updatedKeys).toEqual(
+      expect.arrayContaining([
+        "quotaToast.enableToast",
+        "quotaToast.tuiSidebarPanel.enabled",
+        "quotaToast.tuiCompactStatus.enabled",
+      ]),
+    );
+
+    await applyInitInstallerPlan(plan);
+
+    const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.enableToast).toBe(false);
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: false });
+    expect(quotaConfig.tuiCompactStatus).toEqual({
+      enabled: false,
+      sessionPrompt: true,
+    });
+  });
+
+  it("tolerates legacy compact status without adding sidebar intent", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["toast"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
+        tuiCompactStatus: "home_bottom",
+      } as any,
+    });
+
+    expect(plan.selections.quotaUi).toEqual(["toast", "compact_status"]);
+    expect(plan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota", "tui"]);
+  });
+
+  it("prompts for quota UI as a multiselect and does not ask a separate compact status question", async () => {
+    const prompts = createPromptStub({
+      selectValues: ["project", "auto", "singleWindow", "remaining", "yes"],
+      multiselectValues: [["sidebar", "compact_status"]],
+      confirmValues: [true],
+    });
+
+    const code = await runInitInstaller({
+      cwd: tempDir,
+      prompts: prompts as any,
+    });
+
+    expect(code).toBe(0);
+    expect(prompts.outroCalls).toContain(
+      "Quota init complete — if this helps, stars are appreciated: https://github.com/slkiser/opencode-quota",
+    );
+    expect(prompts.multiselectCalls[0]).toMatchObject({
+      message: "Quota UI",
+      required: true,
+    });
+    expect(prompts.multiselectCalls[0]?.options).toEqual([
+      { label: "Toast", value: "toast", hint: "popup quota summaries after idle/question/compact events" },
+      { label: "Sidebar panel", value: "sidebar", hint: "full Quota panel in the OpenCode session sidebar" },
+      { label: "Compact status line", value: "compact_status", hint: "short quota summary in the TUI status area" },
+      { label: "Terminal/slash commands only", value: "none", hint: "no toast, sidebar, or compact status UI" },
+    ]);
+    const sessionTokenCall = prompts.selectCalls.find((call) => call.message === "Session token details");
+    expect(sessionTokenCall?.options).toEqual([
+      { label: "Hide session tokens", value: "no", hint: "keep quota output shorter" },
+      { label: "Show session tokens", value: "yes", hint: "include current session input/output token counts when available" },
+    ]);
+    const messages = prompts.selectCalls.map((call) => call.message);
+    expect(messages).not.toContain("Compact TUI status");
+    const quotaConfig = readJson(join(tempDir, "opencode-quota", "quota-toast.json"));
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: true });
+    expect(quotaConfig.tuiCompactStatus).toMatchObject({
+      enabled: true,
+      homeBottom: true,
+      sessionPrompt: true,
+      suppressWhenNativeProviderQuota: true,
+    });
+  });
+
+  it("creates both opencode and tui targets for toast + sidebar mode with popup toasts enabled", async () => {
+    const projectDir = join(tempDir, "project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const plan = await planInitInstaller({
+      cwd: projectDir,
+      selections: {
+        scope: "project",
+        quotaUi: ["toast", "sidebar"],
+        providerMode: "auto",
+        manualProviders: [],
+        formatStyle: "singleWindow",
+        percentDisplayMode: "remaining",
+        showSessionTokens: true,
       },
     });
 
     expect(plan.summaryLines).toContain("Quota UI: Toast + Sidebar");
-    expect(plan.summaryLines).toContain("Quota display style: Single window");
-    expect(plan.summaryLines).toContain("Percent display (toast/sidebar): Remaining");
+    expect(plan.summaryLines).toContain("Quota reset periods: Single window");
+    expect(plan.summaryLines).toContain("Quota percentage meaning: Remaining");
     expect(plan.edits.map((edit) => edit.kind)).toEqual(["opencode", "quota", "tui"]);
 
     await applyInitInstallerPlan(plan);
@@ -402,6 +882,7 @@ describe("init installer planning and merge behavior", () => {
       formatStyle: "singleWindow",
       percentDisplayMode: "remaining",
       showSessionTokens: true,
+      tuiSidebarPanel: { enabled: true },
     });
     expect(tui).toEqual({
       $schema: "https://opencode.ai/tui.json",
@@ -417,7 +898,7 @@ describe("init installer planning and merge behavior", () => {
       cwd: projectDir,
       selections: {
         scope: "project",
-        quotaUi: "none",
+        quotaUi: ["none"],
         providerMode: "auto",
         manualProviders: [],
         formatStyle: "singleWindow",
@@ -435,11 +916,13 @@ describe("init installer planning and merge behavior", () => {
     expect(opencode.experimental).toBeUndefined();
     const quotaConfig = readJson(join(projectDir, "opencode-quota", "quota-toast.json"));
     expect(quotaConfig.enableToast).toBe(false);
+    expect(quotaConfig.tuiSidebarPanel).toEqual({ enabled: false });
   });
 
   it("returns zero when the user cancels before applying changes", async () => {
     const prompts = createPromptStub({
-      selectValues: ["project", "toast", "auto", "singleWindow", "remaining", "yes"],
+      selectValues: ["project", "auto", "singleWindow", "remaining", "yes"],
+      multiselectValues: [["toast"]],
       confirmValues: [false],
     });
 
@@ -467,7 +950,8 @@ describe("init installer planning and merge behavior", () => {
 
     const logError = vi.fn();
     const prompts = createPromptStub({
-      selectValues: ["project", "toast", "auto", "singleWindow", "remaining", "yes"],
+      selectValues: ["project", "auto", "singleWindow", "remaining", "yes"],
+      multiselectValues: [["toast"]],
     });
     prompts.log.error = logError;
 
@@ -499,7 +983,7 @@ describe("init installer planning and merge behavior", () => {
         cwd: projectDir,
         selections: {
           scope: "project",
-          quotaUi: "toast",
+          quotaUi: ["toast"],
           providerMode: "auto",
           manualProviders: [],
           formatStyle: "singleWindow",

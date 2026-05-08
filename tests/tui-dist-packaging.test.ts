@@ -34,7 +34,8 @@ describe("tui dist packaging", () => {
 
     const source = await readFile(distTui, "utf8");
     expect(source).toContain("sidebar_content");
-    expect(source).toContain("loadSidebarPanel");
+    expect(source).toContain("loadTuiSessionQuotaSurfaces");
+    expect(source).toContain("resolveTuiSurfaceRegistration");
     expect(source).toContain("const pluginModule");
   });
 

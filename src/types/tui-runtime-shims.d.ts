@@ -39,10 +39,46 @@ declare module "solid-js" {
   ): [() => T, (value: T | ((prev: T) => T)) => T];
   export function createEffect(fn: () => void): void;
   export function onCleanup(fn: () => void): void;
+  export function Show<T>(props: {
+    when: T | undefined | null | false;
+    children?: any;
+    fallback?: any;
+  }): any;
 }
 
 declare module "@opencode-ai/plugin/tui" {
   import type { JSX, SolidPlugin } from "@opentui/solid";
+
+  export type TuiPromptInfo = {
+    input: string;
+    parts: ReadonlyArray<unknown>;
+  };
+
+  export type TuiPromptRef = {
+    focused: boolean;
+    current: TuiPromptInfo;
+    set(prompt: TuiPromptInfo): void;
+    reset(): void;
+    blur(): void;
+    focus(): void;
+    submit(): void;
+  };
+
+  export type TuiPromptProps = {
+    sessionID?: string;
+    workspaceID?: string;
+    visible?: boolean;
+    disabled?: boolean;
+    onSubmit?: () => void;
+    ref?: (ref: TuiPromptRef | undefined) => void;
+    hint?: JSX.Element;
+    right?: JSX.Element;
+    showPlaceholder?: boolean;
+    placeholders?: {
+      normal?: string[];
+      shell?: string[];
+    };
+  };
 
   export type TuiPluginApi = {
     state: {
@@ -60,6 +96,9 @@ declare module "@opencode-ai/plugin/tui" {
         text: unknown;
         textMuted: unknown;
       };
+    };
+    ui: {
+      Prompt: (props: TuiPromptProps) => JSX.Element;
     };
     event: {
       on: (type: string, handler: (event: any) => void) => () => void;
