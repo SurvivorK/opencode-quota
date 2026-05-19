@@ -319,14 +319,34 @@ function SidebarContentView(props: {
 
   const lines = () => getSidebarPanelLines(panel());
 
+  const [collapsed, setCollapsed] = createSignal(
+    props.api.kv?.get("quota-sidebar-collapsed", true) ?? true,
+  );
+
+  const toggleCollapsed = () => {
+    const next = !collapsed();
+    setCollapsed(next);
+    props.api.kv?.set("quota-sidebar-collapsed", next);
+  };
+
+  const displayLines = () => {
+    if (collapsed()) return lines();
+    return panel().linesExpanded ?? lines();
+  };
+
+  const toggleIcon = () => collapsed() ? "▶" : "▼";
+
   return (
     <Show when={shouldRenderSidebarPanel(panel())}>
       <box gap={0}>
-        <text fg={props.api.theme.current.text}>
-          <b>Quota</b>
+        <text
+          fg={props.api.theme.current.text}
+          onMouseDown={toggleCollapsed}
+        >
+          <b>{toggleIcon()} Quota</b>
         </text>
         <box gap={0}>
-          {lines().map((line) => (
+          {displayLines().map((line) => (
             <text fg={getSidebarBodyLineColor(line, props.api.theme.current)} wrapMode="none">
               {line || " "}
             </text>

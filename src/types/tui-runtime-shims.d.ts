@@ -135,6 +135,10 @@ declare module "@opencode-ai/plugin/tui" {
         }>;
       };
     };
+    kv: {
+      get: <Value = unknown>(key: string, fallback?: Value) => Value;
+      set: (key: string, value: unknown) => void;
+    };
   };
 
   export type TuiPluginMeta = {

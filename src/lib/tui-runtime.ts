@@ -186,14 +186,25 @@ function buildSidebarPanelFromData(params: {
     };
   }
 
+  const lines = params.result.data
+    ? buildSidebarQuotaPanelLines({
+        data: params.result.data,
+        config: { ...params.runtime.config, formatStyle: params.formatStyle },
+      })
+    : [];
+
+  let linesExpanded: string[] | undefined;
+  if (params.result.allWindowsData) {
+    linesExpanded = buildSidebarQuotaPanelLines({
+      data: params.result.allWindowsData,
+      config: { ...params.runtime.config, formatStyle: "allWindows" },
+    });
+  }
+
   return {
     status: "ready",
-    lines: params.result.data
-      ? buildSidebarQuotaPanelLines({
-          data: params.result.data,
-          config: { ...params.runtime.config, formatStyle: params.formatStyle },
-        })
-      : [],
+    lines,
+    ...(linesExpanded ? { linesExpanded } : {}),
   };
 }
 
@@ -213,6 +224,7 @@ async function collectTuiQuotaRenderData(params: {
     surfaceExplicitProviderIssues: true,
     formatStyle,
     providers: params.runtime.providers,
+    includeAllWindowsData: true,
   });
 
   return { result, formatStyle };
