@@ -83,6 +83,7 @@ export type CollectQuotaRenderDataResult = {
   attemptedAny: boolean;
   hasExplicitProviderIssues: boolean;
   data: QuotaRenderData | null;
+  allWindowsData?: QuotaRenderData | null;
   sessionTokenError?: SessionTokenError;
 };
 
@@ -473,6 +474,7 @@ export async function collectQuotaRenderData(params: {
   configMeta?: Pick<LoadConfigMeta, "settingSources">;
   bypassProviderCache?: boolean;
   providers?: QuotaProvider[];
+  includeAllWindowsData?: boolean;
 }): Promise<CollectQuotaRenderDataResult> {
   const selection = await resolveQuotaRenderSelection(params);
   if (!selection) {
@@ -639,6 +641,18 @@ export async function collectQuotaRenderData(params: {
       ? null
       : { entries, errors, sessionTokens };
 
+  let allWindowsData: QuotaRenderData | null | undefined;
+  if (params.includeAllWindowsData) {
+    const allWindowsEntries = (style === "allWindows")
+      ? entries
+      : results.flatMap((result) =>
+          projectProviderResultToStyle(result, "allWindows"),
+        ) as QuotaToastEntry[];
+    allWindowsData = (allWindowsEntries.length === 0 && errors.length === 0 && !sessionTokens)
+      ? null
+      : { entries: allWindowsEntries, errors: [...errors], sessionTokens };
+  }
+
   return {
     selection,
     availability,
@@ -646,6 +660,7 @@ export async function collectQuotaRenderData(params: {
     attemptedAny,
     hasExplicitProviderIssues,
     data,
+    allWindowsData,
     sessionTokenError,
   };
 }

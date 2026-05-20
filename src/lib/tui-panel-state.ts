@@ -9,6 +9,8 @@ type PanelStatus = "loading" | "disabled" | "ready";
 export type SidebarPanelState = {
   status: PanelStatus;
   lines: string[];
+  linesExpanded?: string[];
+  providerCount?: number;
 };
 
 export type CompactStatusState =
@@ -31,6 +33,11 @@ export function getSidebarPanelLines(panel: SidebarPanelState): string[] {
     default:
       return [];
   }
+}
+
+export function getSidebarPanelLinesExpanded(panel: SidebarPanelState): string[] {
+  if (panel.linesExpanded && panel.linesExpanded.length > 0) return panel.linesExpanded;
+  return getSidebarPanelLines(panel);
 }
 
 export function shouldRenderCompactStatus(panel: CompactStatusState): boolean {
