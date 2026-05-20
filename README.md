@@ -203,7 +203,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | MiniMax Coding Plan (CN) | Automatic | Remote API |
 | Kimi Code | Automatic | Remote API |
 | Chutes AI | Usually automatic | Remote API |
-| Crof.ai | Manual env/config | Remote API |
+| Crof.ai | Manual env/config/auth | Remote API |
 | Synthetic | Automatic | Remote API |
 | Google Antigravity | [Needs setup](#google-antigravity) | Remote API |
 | Gemini CLI | [Needs setup](#gemini-cli) | Remote API |
@@ -595,7 +595,7 @@ Run `/quota_status` and check the Alibaba auth, resolved tier, state-file path, 
 
 | Symptom | Fix |
 | --- | --- |
-| API key not detected | Use `ALIBABA_CODING_PLAN_API_KEY`, `ALIBABA_API_KEY`, trusted user/global OpenCode config, or OpenCode auth. Repo-local provider secrets are ignored. |
+| API key not detected | Use `ALIBABA_CODING_PLAN_API_KEY`, `ALIBABA_API_KEY`, trusted user/global OpenCode config, or OpenCode auth with `{ "type": "api", "key": "..." }`. Repo-local provider secrets are ignored. |
 | Wrong tier | Set `alibabaCodingPlanTier` to `lite` or `pro` in `opencode-quota/quota-toast.json`. |
 | Counters do not move | Confirm the current model is `alibaba/*` or `alibaba-cn/*`. |
 | Quota seems stale | Check the state-file path shown in `/quota_status`. |
@@ -605,22 +605,22 @@ Run `/quota_status` and check the Alibaba auth, resolved tier, state-file path, 
 <details>
 <summary><strong>MiniMax, Kimi, Chutes AI, Crof.ai, Synthetic, Z.ai, Zhipu, NanoGPT, and DeepSeek</strong></summary>
 
-These providers use trusted env vars, trusted user/global OpenCode config, or native OpenCode auth. Run `/quota_status` and check the provider-specific API-key diagnostics. Crof.ai is env/config only.
+These providers use trusted env vars, trusted user/global OpenCode config, or native OpenCode auth. Run `/quota_status` and check the provider-specific API-key diagnostics.
 
 | Provider | Useful checks |
 | --- | --- |
 | MiniMax Coding Plan | Use `MINIMAX_CODING_PLAN_API_KEY` or `MINIMAX_API_KEY` for the international endpoint. Runtime/config ids like `minimax` and `minimax-coding-plan` use this provider. Repo-local provider secrets are ignored. |
 | MiniMax Coding Plan (CN) | Use `MINIMAX_CHINA_CODING_PLAN_API_KEY` or trusted user/global OpenCode config under `minimax-china-coding-plan`, `minimax-cn-coding-plan`, `minimax-cn`, or `minimax-china`. Runtime id `minimax-cn-coding-plan` uses this provider. |
 | Kimi Code | Use `KIMI_API_KEY` or `KIMI_CODE_API_KEY`; repo-local provider secrets are ignored. |
-| Chutes AI | Use `CHUTES_API_KEY` or trusted user/global config. |
-| Crof.ai | Use `CROF_API_KEY`, `CROFAI_API_KEY`, or trusted user/global config. |
+| Chutes AI | Use `CHUTES_API_KEY`, trusted user/global config, or OpenCode auth. |
+| Crof.ai | Use `CROF_API_KEY`, `CROFAI_API_KEY`, trusted user/global config, or OpenCode auth. |
 | Synthetic | Use `SYNTHETIC_API_KEY`, trusted user/global config, or OpenCode auth. |
 | Z.ai Coding Plan | Use `ZAI_API_KEY` or `ZAI_CODING_PLAN_API_KEY`; malformed fallback auth is surfaced as an auth error. |
 | Zhipu Coding Plan | Use `ZHIPU_API_KEY` or `ZHIPU_CODING_PLAN_API_KEY`; malformed fallback auth is surfaced as an auth error. |
 | NanoGPT | Use `NANOGPT_API_KEY`, `NANO_GPT_API_KEY`, trusted user/global config, or OpenCode auth. |
 | DeepSeek | Use `DEEPSEEK_API_KEY`, trusted user/global config under `provider.deepseek.options.apiKey`, or OpenCode auth. This provider shows balance only because DeepSeek does not expose a quota reset window. |
 
-For security, repo-local `opencode.json` / `opencode.jsonc` is ignored for provider secrets in these integrations. Put secrets in environment variables or trusted user/global config.
+For security, repo-local `opencode.json` / `opencode.jsonc` is ignored for provider secrets in these integrations. Put secrets in environment variables or trusted user/global config. OpenCode auth fallbacks for API-key providers require `{ "type": "api", "key": "..." }` entries.
 
 </details>
 
