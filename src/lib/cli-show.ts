@@ -40,6 +40,7 @@ const SHOW_USAGE = [
   "  --provider <provider-id>  Show quota for one provider",
   "  --json                    Machine-readable JSON output (reads from cache)",
   "  --threshold <pct>         With --json, exit 1 if any provider is below <pct>% remaining",
+  "                            (exit 2 if no provider has cached quota to compare)",
   "  --help, -h                Show help",
 ].join("\n");
 
@@ -224,6 +225,7 @@ async function runCliShowJsonOutput(params: {
     );
 
     if (okProviders.length === 0) {
+      // No cached quota to compare against: distinct from "below threshold" (1).
       return 2;
     }
 

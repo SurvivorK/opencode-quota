@@ -322,7 +322,7 @@ export async function fetchQuotaProviderResult(params: {
 }
 
 export type CachedProviderRead =
-  | { hit: true; result: QuotaProviderResult; timestamp: number; stale: boolean }
+  | { hit: true; result: QuotaProviderResult; timestamp: number }
   | { hit: false };
 
 export async function readCachedProviderResult(params: {
@@ -336,12 +336,10 @@ export async function readCachedProviderResult(params: {
   // Check in-memory cache first.
   const inMemory = inMemoryCache.get(key);
   if (inMemory) {
-    const stale = now - inMemory.timestamp >= params.ttlMs;
     return {
       hit: true,
       result: cloneQuotaProviderResult(inMemory.result),
       timestamp: inMemory.timestamp,
-      stale,
     };
   }
 
@@ -362,12 +360,10 @@ export async function readCachedProviderResult(params: {
       ...persisted,
       result: cloneQuotaProviderResult(persisted.result),
     });
-    const stale = now - persisted.timestamp >= params.ttlMs;
     return {
       hit: true,
       result: cloneQuotaProviderResult(persisted.result),
       timestamp: persisted.timestamp,
-      stale,
     };
   }
 

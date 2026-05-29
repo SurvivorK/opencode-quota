@@ -113,7 +113,6 @@ describe("buildQuotaExport", () => {
         errors: [],
       },
       timestamp: new Date("2026-06-01T11:00:00.000Z").getTime(),
-      stale: false,
     });
 
     const exportData = await buildQuotaExport({
@@ -154,7 +153,6 @@ describe("buildQuotaExport", () => {
         errors: [],
       },
       timestamp: new Date("2026-06-01T11:00:00.000Z").getTime(),
-      stale: false,
     });
 
     const exportData = await buildQuotaExport({
@@ -197,7 +195,6 @@ describe("buildQuotaExport", () => {
         errors: [{ label: "Fetch", message: "Request failed with 429" }],
       },
       timestamp: new Date("2026-06-01T11:00:00.000Z").getTime(),
-      stale: false,
     });
 
     const exportData = await buildQuotaExport({
@@ -220,13 +217,11 @@ describe("buildQuotaExport", () => {
         hit: true,
         result: { attempted: true, entries: [{ name: "A", percentRemaining: 90 }], errors: [] },
         timestamp: new Date("2026-06-01T10:00:00.000Z").getTime(), // 2h old
-        stale: true,
       })
       .mockResolvedValueOnce({
         hit: true,
         result: { attempted: true, entries: [], errors: [{ label: "E", message: "err" }] },
         timestamp: new Date("2026-06-01T11:30:00.000Z").getTime(), // 30m old
-        stale: false,
       });
 
     const exportData = await buildQuotaExport({
@@ -249,7 +244,6 @@ describe("buildQuotaExport", () => {
         errors: [],
       },
       timestamp: new Date("2026-06-01T11:00:00.000Z").getTime(),
-      stale: false,
     });
 
     const exportData = await buildQuotaExport({
