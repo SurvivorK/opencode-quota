@@ -11,12 +11,8 @@ interface SqliteStatement {
 }
 
 interface SqliteDatabase {
-  query(sql: string): SqliteStatement;
+  prepare(sql: string): SqliteStatement;
   close(): void;
-}
-
-interface BunSqliteModule {
-  Database: new (path: string, options: { readonly: boolean }) => SqliteDatabase;
 }
 
 function toParams(params?: unknown[]): unknown[] {
@@ -25,15 +21,44 @@ function toParams(params?: unknown[]): unknown[] {
 
 function runPragma(db: SqliteDatabase, sql: string): void {
   try {
-    db.query(sql).run();
+    db.prepare(sql).run();
   } catch {
     // ignore
   }
 }
 
+async function createSqliteDatabase(dbPath: string): Promise<SqliteDatabase> {
+  // Try Bun's built-in sqlite first
+  try {
+    const mod = (await import("bun:sqlite")) as {
+      Database: new (path: string, options: { readonly: boolean }) => { query(sql: string): SqliteStatement; close(): void };
+    };
+    const bunDb = new mod.Database(dbPath, { readonly: true });
+    return {
+      prepare(sql: string): SqliteStatement {
+        return bunDb.query(sql);
+      },
+      close(): void {
+        try {
+          bunDb.close();
+        } catch {
+          // ignore
+        }
+      },
+    };
+  } catch {
+    // Bun not available — fall back to better-sqlite3
+  }
+
+  const BetterSqlite3 = (
+    await import("better-sqlite3")
+  ).default as new (path: string, options: { readonly: boolean }) => SqliteDatabase;
+
+  return new BetterSqlite3(dbPath, { readonly: true });
+}
+
 export async function openOpenCodeSqliteReadOnly(dbPath: string): Promise<SqliteConn> {
-  const mod = (await import("bun:sqlite")) as unknown as BunSqliteModule;
-  const db = new mod.Database(dbPath, { readonly: true });
+  const db = await createSqliteDatabase(dbPath);
 
   // Keep reads deterministic and avoid accidental writes.
   runPragma(db, "PRAGMA query_only = ON;");
@@ -43,13 +68,13 @@ export async function openOpenCodeSqliteReadOnly(dbPath: string): Promise<Sqlite
 
   return {
     all<T = unknown>(sql: string, params?: unknown[]): T[] {
-      const stmt = db.query(sql);
+      const stmt = db.prepare(sql);
       const p = toParams(params);
       return (p.length ? stmt.all(...p) : stmt.all()) as T[];
     },
 
     get<T = unknown>(sql: string, params?: unknown[]): T | null {
-      const stmt = db.query(sql);
+      const stmt = db.prepare(sql);
       const p = toParams(params);
       const row = (p.length ? stmt.get(...p) : stmt.get()) as T | undefined;
       return row ?? null;
