@@ -1178,6 +1178,108 @@ describe("tui runtime helpers", () => {
     expect(collectQuotaRenderData).not.toHaveBeenCalled();
   });
 
+  it("loads provider-targeted announcement-only home bottom for detected providers", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiCompactStatus: {
+              enabled: false,
+              homeBottom: false,
+            },
+            maintainerAnnouncements: {
+              enabled: true,
+              home: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const bottom = await loadTuiHomeBottomStatus({
+      api: {
+        state: {
+          provider: [{ id: "copilot" }],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      nowMs: Date.parse("2026-05-21T12:00:00.000Z"),
+      announcements: [
+        {
+          id: "copilot-credits",
+          message: "If you use Copilot, GitHub billing is moving to AI Credits.",
+          providerIds: ["copilot"],
+        },
+      ],
+    });
+
+    expect(bottom).toEqual({
+      status: "ready",
+      announcementText: "Notice: Maintainer announcement available. Run /quota_announcements.",
+      compact: { status: "disabled" },
+    });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+  });
+
+  it("does not render provider-targeted announcement-only home bottom without a detected provider", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiCompactStatus: {
+              enabled: false,
+              homeBottom: false,
+            },
+            maintainerAnnouncements: {
+              enabled: true,
+              home: true,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const bottom = await loadTuiHomeBottomStatus({
+      api: {
+        state: {
+          provider: [{ id: "openai" }],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+      nowMs: Date.parse("2026-05-21T12:00:00.000Z"),
+      announcements: [
+        {
+          id: "copilot-credits",
+          message: "If you use Copilot, GitHub billing is moving to AI Credits.",
+          providerIds: ["copilot"],
+        },
+      ],
+    });
+
+    expect(bottom).toEqual({ status: "disabled", compact: { status: "disabled" } });
+    expect(collectQuotaRenderData).not.toHaveBeenCalled();
+  });
+
   it("loads announcement and compact quota in one home bottom state", async () => {
     writeFileSync(
       join(worktreeDir, "opencode.json"),

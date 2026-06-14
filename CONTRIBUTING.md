@@ -22,7 +22,7 @@ Thanks for contributing. This repo has strict local-only behavior and regression
 
 ## Development Setup
 
-- The published package runtime supports Node.js `>=18.0.0` (matches `package.json` engines).
+- The published package runtime supports Node.js `>=20.0.0` (matches `package.json` engines).
 - Repository development uses pnpm v11, which requires Node.js `>=22` for the pnpm CLI.
 - Enable the pinned package manager and install dependencies with:
 
@@ -62,8 +62,8 @@ PR and `main` pushes trigger `.github/workflows/ci.yml` (`CI` workflow):
 
 - Job: `pnpm-quality` on Node `22.x`
 - Steps: `pnpm install --frozen-lockfile`, `pnpm run typecheck`, `pnpm run build`, `pnpm test`, `pnpm pack --dry-run`
-- Job: `runtime-smoke` on Node `18.x`, `20.x`, and `22.x`
-- Runtime smoke installs the packed package as a consumer with npm and verifies the exported server entrypoints plus `engines.node >=18.0.0`
+- Job: `runtime-smoke` on Node `20.x` and `22.x`
+- Runtime smoke installs the packed package as a consumer with npm and verifies the exported server entrypoints plus `engines.node >=20.0.0`
 
 Release workflow `.github/workflows/publish-npm.yml` runs on release/manual dispatch and uses pnpm for version sync, install, typecheck, build, and test before publishing. It keeps `npm publish --access public` only for the npm registry publish step.
 
@@ -75,7 +75,7 @@ Recommended settings for `main`:
 - Require branches to be up to date before merging.
 - Require status checks from workflow `CI` for `pnpm-quality` and every `runtime-smoke` matrix entry.
 - Select checks exactly as GitHub displays them in repository settings.
-- Typical names look like `pnpm-quality`, `runtime-smoke (18.x)`, `runtime-smoke (20.x)`, `runtime-smoke (22.x)` or `CI / ...` variants.
+- Typical names look like `pnpm-quality`, `runtime-smoke (20.x)`, `runtime-smoke (22.x)` or `CI / ...` variants.
 - Block direct pushes to `main` for non-admin users.
 
 ## Repo Guardrails

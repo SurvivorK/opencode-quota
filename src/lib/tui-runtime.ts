@@ -6,10 +6,11 @@ import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
 
 import { resolveRuntimeContextRoots, type RuntimeContextRootHints } from "./config-file-utils.js";
 import {
+  createQuotaProviderRuntimeContext,
   createQuotaRuntimeRequestContext,
   resolveQuotaRuntimeContext,
 } from "./quota-runtime-context.js";
-import { collectQuotaRenderData } from "./quota-render-data.js";
+import { collectConcreteEnabledProviderIds, collectQuotaRenderData } from "./quota-render-data.js";
 import { resolveQuotaFormatStyle } from "./quota-format-style.js";
 import { buildCompactQuotaStatusLine } from "./tui-compact-format.js";
 import { hasNativeProviderQuotaClient } from "./tui-native-provider-quota.js";
@@ -351,9 +352,14 @@ export async function loadTuiHomeBottomStatus(params: {
 
   let announcementText: string | undefined;
   if (announcementEnabled) {
+    const providerIds = await collectConcreteEnabledProviderIds({
+      providers: runtime.providers,
+      ctx: createQuotaProviderRuntimeContext(runtime),
+      enabledProviders: runtime.config.enabledProviders,
+    });
     const summary = getMaintainerAnnouncementsSummary({
       nowMs: params.nowMs,
-      enabledProviders: runtime.config.enabledProviders,
+      enabledProviders: providerIds,
       announcements: params.announcements,
     });
     announcementText = formatMaintainerAnnouncementHomeCountLine(summary.activeCount) || undefined;

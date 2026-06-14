@@ -57,6 +57,7 @@ vi.mock("../src/lib/alibaba-auth.js", () =>
 );
 
 vi.mock("../src/lib/quota-render-data.js", () => ({
+  collectConcreteEnabledProviderIds: vi.fn(),
   collectQuotaRenderData: vi.fn(),
   collectQuotaStatusLiveProbes: mocks.collectQuotaStatusLiveProbes,
   matchesQuotaProviderCurrentSelection: vi.fn(() => true),

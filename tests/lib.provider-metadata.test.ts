@@ -18,7 +18,7 @@ describe("provider-metadata", () => {
         autoSetup: "needs_quick_setup",
         authentication: "local_cli_auth",
         quota: "local_cli_report",
-        quickSetupAnchor: "anthropic-quick-setup",
+        quickSetupAnchor: "anthropic-claude",
       },
       {
         id: "copilot",
@@ -38,7 +38,7 @@ describe("provider-metadata", () => {
         autoSetup: "needs_quick_setup",
         authentication: "companion_auth_oauth_token",
         quota: "local_runtime_accounting",
-        quickSetupAnchor: "cursor-quick-setup",
+        quickSetupAnchor: "cursor",
         notes: "companion runtime/plugin integration plus local usage accounting",
       },
       {
@@ -46,7 +46,7 @@ describe("provider-metadata", () => {
         autoSetup: "needs_quick_setup",
         authentication: "companion_auth_oauth_token",
         quota: "local_estimation",
-        quickSetupAnchor: "qwen-code-quick-setup",
+        quickSetupAnchor: "qwen-code",
       },
       {
         id: "alibaba-coding-plan",
@@ -83,14 +83,14 @@ describe("provider-metadata", () => {
         autoSetup: "needs_quick_setup",
         authentication: "companion_auth_oauth_token",
         quota: "remote_api",
-        quickSetupAnchor: "google-antigravity-quick-setup",
+        quickSetupAnchor: "google-antigravity",
       },
       {
         id: "google-gemini-cli",
         autoSetup: "needs_quick_setup",
         authentication: "companion_auth_oauth_token",
         quota: "remote_api",
-        quickSetupAnchor: "google-gemini-cli-quick-setup",
+        quickSetupAnchor: "gemini-cli",
       },
       {
         id: "zai",
@@ -146,7 +146,7 @@ describe("provider-metadata", () => {
         autoSetup: "needs_quick_setup",
         authentication: "state_only",
         quota: "remote_api",
-        quickSetupAnchor: "opencode-go-quick-setup",
+        quickSetupAnchor: "opencode-go",
         notes: "Scrapes the OpenCode Go dashboard; requires workspaceId and authCookie",
       },
       {
@@ -289,14 +289,14 @@ describe("provider-metadata", () => {
       autoSetup: "needs_quick_setup",
       authentication: "companion_auth_oauth_token",
       quota: "local_estimation",
-      quickSetupAnchor: "qwen-code-quick-setup",
+      quickSetupAnchor: "qwen-code",
     });
     expect(getQuotaProviderShape("gemini-cli")).toEqual({
       id: "google-gemini-cli",
       autoSetup: "needs_quick_setup",
       authentication: "companion_auth_oauth_token",
       quota: "remote_api",
-      quickSetupAnchor: "google-gemini-cli-quick-setup",
+      quickSetupAnchor: "gemini-cli",
     });
     expect(getQuotaProviderShape("deep-seek")).toEqual({
       id: "deepseek",

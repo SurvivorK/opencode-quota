@@ -26,7 +26,7 @@ npx @slkiser/opencode-quota init
 ```
 
 > [!IMPORTANT]
-> OpenCode `>= 1.4.3` and Node.js `>= 18` are required.
+> OpenCode `>= 1.4.3` and Node.js `>= 20` are required.
 
 The installer adds missing plugin/config entries and keeps your unrelated settings. Re-running it updates only installer-owned Quota UI choices.
 
