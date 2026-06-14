@@ -150,6 +150,51 @@ describe("google agy logic", () => {
     });
   });
 
+  it("prioritizes managedProjectId and quotaProjectId over developer projectIds in resolveAgyAccounts", () => {
+    const auth = {
+      "google-agy": {
+        type: "oauth" as const,
+        refresh: "refresh-token-1|dev-project-part|managed-project-part",
+        email: "alice@example.com",
+        projectId: "dev-project-entry",
+        projectID: "dev-project-entry-2",
+        managedProjectId: "managed-project-entry",
+        quotaProjectId: "quota-project-entry",
+      },
+    };
+
+    // Test 1: entry.managedProjectId takes top priority
+    let resolved = resolveAgyAccounts(auth, "configured-project");
+    expect(resolved[0].projectId).toBe("managed-project-entry");
+
+    // Test 2: entry.quotaProjectId takes priority over entry.projectId/projectID and parts and configuredProjectId
+    const auth2 = {
+      "google-agy": {
+        type: "oauth" as const,
+        refresh: "refresh-token-1|dev-project-part|managed-project-part",
+        email: "alice@example.com",
+        projectId: "dev-project-entry",
+        projectID: "dev-project-entry-2",
+        quotaProjectId: "quota-project-entry",
+      },
+    };
+    resolved = resolveAgyAccounts(auth2, "configured-project");
+    expect(resolved[0].projectId).toBe("quota-project-entry");
+
+    // Test 3: parts.managedProjectId takes priority over entry.projectId/projectID and parts.projectId and configuredProjectId
+    const auth3 = {
+      "google-agy": {
+        type: "oauth" as const,
+        refresh: "refresh-token-1|dev-project-part|managed-project-part",
+        email: "alice@example.com",
+        projectId: "dev-project-entry",
+        projectID: "dev-project-entry-2",
+      },
+    };
+    resolved = resolveAgyAccounts(auth3, "configured-project");
+    expect(resolved[0].projectId).toBe("managed-project-part");
+  });
+
   it("returns error if companion credentials are missing or invalid", async () => {
     mocks.readAuthFileCached.mockResolvedValueOnce({
       "google-agy": {

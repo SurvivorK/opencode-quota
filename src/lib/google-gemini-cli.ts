@@ -126,12 +126,12 @@ function resolveProjectId(
   configuredProjectId?: string,
 ): string | undefined {
   return (
-    normalizeString(entry.projectId) ??
-    normalizeString(entry.projectID) ??
     normalizeString(entry.managedProjectId) ??
     normalizeString(entry.quotaProjectId) ??
-    parts.projectId ??
     parts.managedProjectId ??
+    normalizeString(entry.projectId) ??
+    normalizeString(entry.projectID) ??
+    parts.projectId ??
     normalizeString(configuredProjectId)
   );
 }

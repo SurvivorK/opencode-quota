@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { readAuthFileCached } from "./opencode-auth.js";
 import { fetchWithTimeout } from "./http.js";
 import {
@@ -35,7 +36,11 @@ const AGY_TOKEN_REFRESH_URL = "https://oauth2.googleapis.com/token";
 const AGY_TOKEN_TIMEOUT_MS = 8_000;
 const AGY_QUOTA_TIMEOUT_MS = 6_000;
 const AGY_ACCOUNTS_CONCURRENCY = 3;
-const AGY_USER_AGENT = `AgyCLI/opencode-quota (${process.platform}; ${process.arch})`;
+const AGY_USER_AGENT = "antigravity/cli/1.0.3 darwin/amd64";
+
+function createAgyActivityRequestId(): string {
+  return crypto.randomUUID();
+}
 
 type RefreshParts = {
   refreshToken: string;
@@ -131,12 +136,12 @@ export function resolveAgyAccounts(
     }
 
     const projectId =
-      normalizeString(entry.projectId) ??
-      normalizeString(entry.projectID) ??
       normalizeString(entry.managedProjectId) ??
       normalizeString(entry.quotaProjectId) ??
-      parts.projectId ??
       parts.managedProjectId ??
+      normalizeString(entry.projectId) ??
+      normalizeString(entry.projectID) ??
+      parts.projectId ??
       normalizeString(configuredProjectId);
 
     if (!projectId) {
@@ -384,6 +389,7 @@ async function retrieveGoogleAgyQuota(
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
         "User-Agent": AGY_USER_AGENT,
+        "x-activity-request-id": createAgyActivityRequestId(),
       },
       body: JSON.stringify({ project: projectId }),
     },
@@ -403,6 +409,26 @@ async function retrieveGoogleAgyQuota(
 export function formatDisplayName(modelId: string): string {
   // Replace all underscores with hyphens
   let cleaned = modelId.replace(/_/g, "-").trim();
+
+  // Special cases for well-known prefixes
+  if (cleaned.toLowerCase().startsWith("claude-")) {
+    // Handle versions like claude-3-5-sonnet -> Claude 3.5 Sonnet
+    return cleaned
+      .split("-")
+      .map((part, i) => {
+        if (i === 0) return "Claude";
+        if (/^\d+$/.test(part) && /^\d+$/.test(cleaned.split("-")[i + 1] || "")) {
+          return part + "." + cleaned.split("-")[i + 1];
+        }
+        if (/^\d+$/.test(part) && /^\d+$/.test(cleaned.split("-")[i - 1] || "")) {
+          return ""; // Skip second part of version
+        }
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
   // Replace gpt-oss (case-insensitive) with a temporary placeholder
   cleaned = cleaned.replace(/gpt-oss/gi, "GPT_OSS");
   // Replace digit-digit with digit.digit (e.g. 4-6 to 4.6)
@@ -463,10 +489,19 @@ function mapQuotaBuckets(
     .map((bucket) => {
       const modelId = normalizeString(bucket.modelId)!;
       const remainingFraction = bucket.remainingFraction;
-      const percentRemaining =
-        typeof remainingFraction === "number" && Number.isFinite(remainingFraction)
-          ? Math.round(remainingFraction * 100)
-          : 0;
+
+      let percentRemaining: number;
+      if (typeof remainingFraction === "number" && Number.isFinite(remainingFraction)) {
+        percentRemaining = Math.round(remainingFraction * 100);
+      } else if (
+        normalizeString(bucket.remainingAmount) &&
+        bucket.remainingAmount?.toLowerCase().includes("unlimited")
+      ) {
+        percentRemaining = 100;
+      } else {
+        percentRemaining = 0;
+      }
+
       return {
         modelId,
         displayName: formatDisplayName(modelId),
