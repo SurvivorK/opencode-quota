@@ -16,9 +16,9 @@ const pkg = JSON.parse(
 const pnpmWorkspace = await readFile(new URL("../pnpm-workspace.yaml", import.meta.url), "utf8");
 
 describe("package manifest compatibility", () => {
-  it("pins pnpm development tooling without raising runtime Node support", () => {
+  it("pins pnpm development tooling while requiring Node 20+ at runtime", () => {
     expect(pkg.packageManager).toBe("pnpm@11.0.0");
-    expect(pkg.engines?.node).toBe(">=18.0.0");
+    expect(pkg.engines?.node).toBe(">=20.0.0");
   });
 
   it("hardens pnpm dependency resolution against fresh-package supply-chain attacks", () => {

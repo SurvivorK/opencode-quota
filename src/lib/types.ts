@@ -650,6 +650,30 @@ export type SyntheticResult =
   | QuotaError
   | null;
 
+/** Single usage window from Ollama Cloud settings page */
+export interface OllamaCloudWindow {
+  /** Usage percentage [0..100] */
+  usagePercent: number;
+  /** Remaining percentage [0..100] */
+  percentRemaining: number;
+  /** ISO reset timestamp */
+  resetTimeIso?: string;
+}
+
+/** Result from scraping Ollama Cloud settings page */
+export type OllamaCloudResult =
+  | {
+      success: true;
+      /** Session usage window, when present */
+      session?: OllamaCloudWindow;
+      /** Weekly usage window, when present */
+      weekly?: OllamaCloudWindow;
+      /** Plan tier (e.g. "free", "pro") */
+      planTier?: string;
+    }
+  | QuotaError
+  | null;
+
 /** Single usage window from OpenCode Go dashboard */
 export interface OpenCodeGoWindow {
   /** Usage percentage [0..100] */

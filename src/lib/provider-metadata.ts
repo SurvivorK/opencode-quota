@@ -17,7 +17,8 @@ export type CanonicalQuotaProviderId =
   | "minimax-china-coding-plan"
   | "kimi-for-coding"
   | "deepseek"
-  | "opencode-go";
+  | "opencode-go"
+  | "ollama-cloud";
 
 export type QuotaProviderAutoSetup = "yes" | "usually" | "manual_env_config" | "needs_quick_setup";
 
@@ -72,6 +73,7 @@ export const QUOTA_PROVIDER_LABELS: Readonly<Record<string, string>> = {
   "kimi-code": "Kimi Code",
   deepseek: "DeepSeek",
   "opencode-go": "OpenCode Go",
+  "ollama-cloud": "Ollama Cloud",
 };
 
 export const QUOTA_PROVIDER_ID_SYNONYMS: Readonly<Record<string, string>> = {
@@ -135,6 +137,7 @@ export const QUOTA_PROVIDER_RUNTIME_IDS: QuotaProviderRuntimeIds = {
   "kimi-for-coding": ["kimi-for-coding", "kimi", "kimi-code"],
   deepseek: ["deepseek"],
   "opencode-go": ["opencode-go"],
+  "ollama-cloud": ["ollama-cloud"],
 };
 
 const LIVE_LOCAL_USAGE_PROVIDER_ID_SET = new Set<string>([
@@ -149,7 +152,7 @@ export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
     autoSetup: "needs_quick_setup",
     authentication: "local_cli_auth",
     quota: "local_cli_report",
-    quickSetupAnchor: "anthropic-quick-setup",
+    quickSetupAnchor: "anthropic-claude",
   },
   {
     id: "copilot",
@@ -169,7 +172,7 @@ export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
     autoSetup: "needs_quick_setup",
     authentication: "companion_auth_oauth_token",
     quota: "local_runtime_accounting",
-    quickSetupAnchor: "cursor-quick-setup",
+    quickSetupAnchor: "cursor",
     notes: "companion runtime/plugin integration plus local usage accounting",
   },
   {
@@ -177,7 +180,7 @@ export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
     autoSetup: "needs_quick_setup",
     authentication: "companion_auth_oauth_token",
     quota: "local_estimation",
-    quickSetupAnchor: "qwen-code-quick-setup",
+    quickSetupAnchor: "qwen-code",
   },
   {
     id: "alibaba-coding-plan",
@@ -214,14 +217,14 @@ export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
     autoSetup: "needs_quick_setup",
     authentication: "companion_auth_oauth_token",
     quota: "remote_api",
-    quickSetupAnchor: "google-antigravity-quick-setup",
+    quickSetupAnchor: "google-antigravity",
   },
   {
     id: "google-gemini-cli",
     autoSetup: "needs_quick_setup",
     authentication: "companion_auth_oauth_token",
     quota: "remote_api",
-    quickSetupAnchor: "google-gemini-cli-quick-setup",
+    quickSetupAnchor: "gemini-cli",
   },
   {
     id: "zai",
@@ -277,8 +280,15 @@ export const QUOTA_PROVIDER_SHAPES: readonly QuotaProviderShape[] = [
     autoSetup: "needs_quick_setup",
     authentication: "state_only",
     quota: "remote_api",
-    quickSetupAnchor: "opencode-go-quick-setup",
+    quickSetupAnchor: "opencode-go",
     notes: "Scrapes the OpenCode Go dashboard; requires workspaceId and authCookie",
+  },
+  {
+    id: "ollama-cloud",
+    autoSetup: "manual_env_config",
+    authentication: "state_only",
+    quota: "remote_api",
+    notes: "Scrapes the Ollama Cloud settings page; requires __Secure-session cookie via OLLAMA_USAGE_COOKIE env or ollama-usage config",
   },
 ];
 

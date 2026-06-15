@@ -199,18 +199,6 @@ function formatSettingSources(sources: QuotaToastSettingSources | undefined): st
   return parts.length > 0 ? parts.join(" | ") : "(none)";
 }
 
-function formatSelectedSettingSources(
-  sources: QuotaToastSettingSources | undefined,
-  keys: Array<keyof QuotaToastSettingSources>,
-): string {
-  if (!sources) return "(none)";
-
-  const parts = keys
-    .filter((key) => typeof sources[key] === "string" && sources[key]!.length > 0)
-    .map((key) => `${key}<=${sources[key]}`);
-
-  return parts.length > 0 ? parts.join(" | ") : "(none)";
-}
 
 function getConfigPrecedenceLabel(configSource: string): string {
   switch (configSource) {

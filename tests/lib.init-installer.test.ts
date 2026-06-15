@@ -94,7 +94,7 @@ describe("init installer planning and merge behavior", () => {
       {
         providerId: "anthropic",
         label: "Anthropic",
-        anchor: "anthropic-quick-setup",
+        anchor: "anthropic-claude",
       },
     ]);
 
