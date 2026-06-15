@@ -46,7 +46,37 @@ export const googleAgyProvider: QuotaProvider = {
       return attemptedErrorResult("Google Agy", result.error);
     }
 
-    const entries = result.buckets.map((bucket) => {
+    const groupedBuckets = new Map<string, typeof result.buckets[0]>();
+
+    for (const bucket of result.buckets) {
+      let groupName: string | undefined;
+      const name = bucket.displayName;
+
+      if (name.startsWith("Gemini 2.5")) {
+        groupName = "Gemini 2.5";
+      } else if (name.startsWith("Gemini 3 ") || name.startsWith("Gemini 3.1")) {
+        groupName = "Gemini 3 & 3.1";
+      } else if (name.startsWith("Gemini 3.5")) {
+        groupName = "Gemini 3.5";
+      } else if (name.includes("Claude") && name.includes("4.6")) {
+        groupName = "Claude 4.6";
+      }
+
+      if (!groupName) continue;
+
+      const key = `${bucket.accountEmail || ""}::${groupName}`;
+      const existing = groupedBuckets.get(key);
+
+      if (!existing || bucket.percentRemaining < existing.percentRemaining) {
+        groupedBuckets.set(key, { ...bucket, displayName: groupName });
+      }
+    }
+
+    const finalBuckets = Array.from(groupedBuckets.values()).sort((a, b) => 
+      a.displayName.localeCompare(b.displayName)
+    );
+
+    const entries = finalBuckets.map((bucket) => {
       const emailLabel = formatGoogleAccountLabel(bucket.accountEmail, "domainHint");
       const parsedRemaining = bucket.remainingAmount
         ? Number.parseInt(bucket.remainingAmount, 10)

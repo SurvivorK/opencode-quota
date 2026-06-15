@@ -41,8 +41,8 @@ describe("google agy provider", () => {
       success: true,
       buckets: [
         {
-          modelId: "gpt-4",
-          displayName: "GPT 4",
+          modelId: "gemini-2-5-flash",
+          displayName: "Gemini 2.5 Flash",
           accountEmail: "alice@example.com",
           percentRemaining: 64,
           resetTimeIso: "2026-01-01T00:00:00.000Z",
@@ -57,9 +57,9 @@ describe("google agy provider", () => {
     expect(out.attempted).toBe(true);
     expect(out.entries).toEqual([
       {
-        name: "GPT 4 (ali..example)",
+        name: "Gemini 2.5 (ali..example)",
         group: "Google Agy",
-        label: "GPT 4:",
+        label: "Gemini 2.5:",
         right: "1,234 left",
         percentRemaining: 64,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
@@ -78,8 +78,8 @@ describe("google agy provider", () => {
       success: true,
       buckets: [
         {
-          modelId: "gpt-4",
-          displayName: "GPT 4",
+          modelId: "gemini-3-5-flash",
+          displayName: "Gemini 3.5 Flash",
           accountEmail: "alice@example.com",
           percentRemaining: 20,
           resetTimeIso: "2026-01-01T12:00:00Z",
@@ -93,9 +93,9 @@ describe("google agy provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toEqual([
       {
-        name: "GPT 4 (ali..example)",
+        name: "Gemini 3.5 (ali..example)",
         group: "Google Agy",
-        label: "GPT 4:",
+        label: "Gemini 3.5:",
         right: "50 left TOKENS",
         percentRemaining: 20,
         resetTimeIso: "2026-01-01T12:00:00Z",
@@ -105,6 +105,36 @@ describe("google agy provider", () => {
       singleWindowDisplayName: "Google Agy",
       singleWindowShowRight: true,
     });
+  });
+
+  it("groups and filters multiple models into canonical display buckets", async () => {
+    const { queryGoogleAgyQuota } = await import("../src/lib/google-agy.js");
+    (queryGoogleAgyQuota as any).mockResolvedValueOnce({
+      success: true,
+      buckets: [
+        { modelId: "gemini-2-5-flash", displayName: "Gemini 2.5 Flash", accountEmail: "test@a.com", percentRemaining: 12 },
+        { modelId: "gemini-2-5-pro", displayName: "Gemini 2.5 Pro", accountEmail: "test@a.com", percentRemaining: 12 },
+        { modelId: "gemini-3-flash", displayName: "Gemini 3 Flash", accountEmail: "test@a.com", percentRemaining: 12 },
+        { modelId: "gemini-3-1-pro-high", displayName: "Gemini 3.1 Pro High", accountEmail: "test@a.com", percentRemaining: 12 },
+        { modelId: "gemini-3-5-flash", displayName: "Gemini 3.5 Flash", accountEmail: "test@a.com", percentRemaining: 12 },
+        { modelId: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", accountEmail: "test@a.com", percentRemaining: 0 },
+        { modelId: "claude-opus-4-6-thinking", displayName: "Claude Opus 4.6 Thinking", accountEmail: "test@a.com", percentRemaining: 0 },
+        { modelId: "gpt-oss-120b", displayName: "GPT-OSS 120B (Medium)", accountEmail: "test@a.com", percentRemaining: 0 }, // Should be filtered out
+        { modelId: "chat-20706", displayName: "Chat 20706", accountEmail: "test@a.com", percentRemaining: 100 }, // Should be filtered out
+      ],
+    });
+
+    const out = await googleAgyProvider.fetch({ client: {} } as any);
+    expectAttemptedWithNoErrors(out);
+    
+    // Check that we only get the 4 consolidated groups, sorted alphabetically
+    const entryLabels = out.entries.map(e => e.label);
+    expect(entryLabels).toEqual([
+      "Claude 4.6:",
+      "Gemini 2.5:",
+      "Gemini 3 & 3.1:",
+      "Gemini 3.5:",
+    ]);
   });
 
   it("maps fetch failures into toast errors", async () => {
