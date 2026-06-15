@@ -285,7 +285,7 @@ describe("/quota command behavior", () => {
     expect(message).not.toContain("81% left");
   });
 
-  it("keeps /quota remaining-oriented when percentDisplayMode is used", async () => {
+  it("honors percentDisplayMode for /quota output", async () => {
     mocks.loadConfig.mockResolvedValueOnce({
       ...DEFAULT_CONFIG,
       enabled: true,
