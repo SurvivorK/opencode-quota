@@ -342,7 +342,7 @@ function stripSingleWindowEntryMeta(
   return { ...withoutRight };
 }
 
-function normalizeSingleWindowWindowLabel(value?: string): string | null {
+export function normalizeSingleWindowWindowLabel(value?: string): string | null {
   const lower = value?.trim().replace(/:+$/u, "").trim().toLowerCase() ?? "";
   if (!lower) return null;
 

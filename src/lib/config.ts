@@ -64,6 +64,8 @@ export const QUOTA_TOAST_SETTING_SOURCE_KEYS = [
   "layout.maxWidth",
   "layout.narrowAt",
   "layout.tinyAt",
+  "export.enabled",
+  "export.path",
 ] as const;
 
 export type QuotaToastSettingSourceKey = (typeof QUOTA_TOAST_SETTING_SOURCE_KEYS)[number];
@@ -122,6 +124,7 @@ type TuiSidebarPanelPatch = Partial<QuotaToastConfig["tuiSidebarPanel"]>;
 type TuiCompactStatusPatch = Partial<QuotaToastConfig["tuiCompactStatus"]>;
 type MaintainerAnnouncementsPatch = Partial<QuotaToastConfig["maintainerAnnouncements"]>;
 type LayoutPatch = Partial<QuotaToastConfig["layout"]>;
+type ExportConfigPatch = Partial<QuotaToastConfig["export"]>;
 
 type ValidatedQuotaToastPatch = {
   enabled?: boolean;
@@ -152,6 +155,7 @@ type ValidatedQuotaToastPatch = {
   tuiCompactStatus?: TuiCompactStatusPatch;
   maintainerAnnouncements?: MaintainerAnnouncementsPatch;
   layout?: LayoutPatch;
+  export?: ExportConfigPatch;
 };
 
 type ConfigLayerScope = "global" | "workspace";
@@ -275,6 +279,7 @@ function cloneConfig(config: QuotaToastConfig): QuotaToastConfig {
     tuiCompactStatus: { ...config.tuiCompactStatus },
     maintainerAnnouncements: { ...config.maintainerAnnouncements },
     layout: { ...config.layout },
+    export: { ...config.export },
   };
 }
 
@@ -444,6 +449,24 @@ function extractLayoutPatch(value: unknown): LayoutPatch | undefined {
 
   if (hasOwnKey(value, "tinyAt") && isPositiveNumber(value.tinyAt)) {
     patch.tinyAt = value.tinyAt;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
+function extractExportConfigPatch(value: unknown): ExportConfigPatch | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const patch: ExportConfigPatch = {};
+
+  if (hasOwnKey(value, "enabled") && typeof value.enabled === "boolean") {
+    patch.enabled = value.enabled;
+  }
+
+  if (hasOwnKey(value, "path") && typeof value.path === "string") {
+    patch.path = value.path;
   }
 
   return Object.keys(patch).length > 0 ? patch : undefined;
@@ -632,6 +655,13 @@ function extractValidatedQuotaToastPatch(
     const layout = extractLayoutPatch(quotaToastConfig.layout);
     if (layout) {
       patch.layout = layout;
+    }
+  }
+
+  if (hasOwnKey(quotaToastConfig, "export")) {
+    const exportConfig = extractExportConfigPatch(quotaToastConfig.export);
+    if (exportConfig) {
+      patch.export = exportConfig;
     }
   }
 
@@ -843,6 +873,18 @@ function applyValidatedQuotaToastPatch(
     if (hasOwnKey(patch.layout, "tinyAt")) {
       config.layout.tinyAt = patch.layout.tinyAt!;
       applySettingSource(settingSources, "layout.tinyAt", sourcePath);
+    }
+  }
+
+  if (patch.export) {
+    if (hasOwnKey(patch.export, "enabled")) {
+      config.export.enabled = patch.export.enabled!;
+      applySettingSource(settingSources, "export.enabled", sourcePath);
+    }
+
+    if (hasOwnKey(patch.export, "path")) {
+      config.export.path = patch.export.path!;
+      applySettingSource(settingSources, "export.path", sourcePath);
     }
   }
 }

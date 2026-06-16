@@ -39,6 +39,17 @@ export interface TuiCompactStatusConfig {
   maxWidth: number;
 }
 
+export interface QuotaExportConfig {
+  /** Whether to write the export file after each background refresh. Default: false. */
+  enabled: boolean;
+  /**
+   * Absolute path or ~/… path for the export file.
+   * Empty string means use the XDG default:
+   *   $XDG_CACHE_HOME/opencode/quota-export.json
+   */
+  path: string;
+}
+
 export interface MaintainerAnnouncementsConfig {
   enabled: boolean;
   home: boolean;
@@ -132,6 +143,9 @@ export interface QuotaToastConfig {
   /** Bundled-only maintainer announcement surfaces. */
   maintainerAnnouncements: MaintainerAnnouncementsConfig;
 
+  /** Opt-in periodic JSON export for external tool consumption. */
+  export: QuotaExportConfig;
+
   /** Responsive toast layout breakpoints (not used by the fixed-width TUI sidebar). */
   layout: {
     /** Default max width target for toast formatting */
@@ -190,6 +204,10 @@ export const DEFAULT_CONFIG: QuotaToastConfig = {
   maintainerAnnouncements: {
     enabled: true,
     home: true,
+  },
+  export: {
+    enabled: false,
+    path: "",
   },
   layout: {
     maxWidth: 50,

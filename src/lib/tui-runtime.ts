@@ -20,6 +20,7 @@ import {
   getMaintainerAnnouncementsSummary,
   type MaintainerAnnouncement,
 } from "./maintainer-announcements.js";
+import { resolveExportPath, buildQuotaExport, writeQuotaExport, createExportProviderContext } from "./quota-export.js";
 
 const COMPACT_UNAVAILABLE_TEXT = "Quota unavailable";
 
@@ -289,6 +290,7 @@ export async function resolveTuiSurfaceRegistration(
     runtime.config.enabled &&
     runtime.config.maintainerAnnouncements.enabled &&
     runtime.config.maintainerAnnouncements.home;
+  const exportHomeBottom = runtime.config.enabled && runtime.config.export.enabled;
   const compactHomeBottom = compactEnabled && compact.homeBottom;
 
   return {
@@ -305,7 +307,7 @@ export async function resolveTuiSurfaceRegistration(
     announcements: {
       homeBottom: announcementHomeBottom,
     },
-    homeBottom: compactHomeBottom || announcementHomeBottom,
+    homeBottom: compactHomeBottom || announcementHomeBottom || exportHomeBottom,
   };
 }
 
@@ -471,4 +473,37 @@ export async function loadSidebarPanel(params: {
   sessionID: string;
 }): Promise<SidebarPanelState> {
   return (await loadTuiSessionQuotaSurfaces(params)).sidebar;
+}
+
+/**
+ * Writes the quota export file if `config.export.enabled` is true.
+ *
+ * Called from the TUI home bottom status refresh loop. Errors propagate to
+ * the caller; the call-site in `tui.tsx` is responsible for catching and
+ * logging them so a failed write never affects rendering.
+ */
+export async function writeTuiQuotaExportIfEnabled(params: {
+  api: TuiPluginApi;
+}): Promise<void> {
+  const quotaClient = createTuiQuotaClient(params.api);
+  const runtime = await resolveQuotaRuntimeContext({
+    client: quotaClient,
+    roots: getTuiRuntimeRootHints(params.api),
+  });
+
+  if (!runtime.config.enabled || !runtime.config.export.enabled) {
+    return;
+  }
+
+  const resolvedPath = resolveExportPath(runtime.config.export.path);
+  const ctx = createExportProviderContext(runtime);
+
+  const exportData = await buildQuotaExport({
+    providers: runtime.providers,
+    ctx,
+    ttlMs: runtime.config.minIntervalMs,
+    fromCache: true,
+  });
+
+  await writeQuotaExport(exportData, resolvedPath);
 }
