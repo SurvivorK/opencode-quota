@@ -1529,6 +1529,135 @@ describe("tui runtime helpers", () => {
     expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
   });
 
+  it("uses tuiCompactStatus.formatStyle override for home compact status", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            formatStyle: "singleWindow",
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              formatStyle: "allWindows",
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const singleWindowData = {
+      entries: [{ name: "Copilot", percentRemaining: 50 }],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    const allWindowsData = {
+      entries: [
+        { name: "Copilot 5h", percentRemaining: 50 },
+        { name: "Copilot Weekly", percentRemaining: 80 },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({
+      active: [],
+      data: singleWindowData,
+      allWindowsData,
+    });
+    buildCompactQuotaStatusLine.mockReturnValue("50% 80%");
+
+    const compact = await loadTuiHomeCompactStatus({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+    });
+
+    expect(compact).toEqual({ status: "ready", text: "50% 80%" });
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith(
+      expect.objectContaining({ data: allWindowsData }),
+    );
+  });
+
+  it("uses tuiCompactStatus.formatStyle override for home bottom compact status", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            formatStyle: "singleWindow",
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              formatStyle: "allWindows",
+            },
+            maintainerAnnouncements: {
+              enabled: false,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const singleWindowData = {
+      entries: [{ name: "Copilot", percentRemaining: 50 }],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    const allWindowsData = {
+      entries: [
+        { name: "Copilot 5h", percentRemaining: 50 },
+        { name: "Copilot Weekly", percentRemaining: 80 },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({
+      active: [],
+      data: singleWindowData,
+      allWindowsData,
+    });
+    buildCompactQuotaStatusLine.mockReturnValue("50% 80%");
+
+    const bottom = await loadTuiHomeBottomStatus({
+      api: {
+        state: {
+          provider: [],
+          path: {
+            worktree: worktreeDir,
+            directory: nestedDir,
+          },
+          session: {
+            messages: () => [],
+          },
+        },
+        client: {},
+      } as any,
+    });
+
+    expect(bottom).toEqual({
+      status: "ready",
+      announcementText: undefined,
+      compact: { status: "ready", text: "50% 80%" },
+    });
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith(
+      expect.objectContaining({ data: allWindowsData }),
+    );
+  });
+
   it("uses tuiSidebarPanel.formatStyle override instead of root formatStyle for sidebar", async () => {
     writeFileSync(
       join(worktreeDir, "opencode.json"),

@@ -156,6 +156,14 @@ describe("loadConfig", () => {
     });
     expect(withInvalidFormatStyle.config.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
     expect(withInvalidFormatStyle.meta.settingSources).toEqual({});
+
+    const withLegacyToastStyle = await loadSdkConfig({
+      tuiSidebarPanel: {
+        toastStyle: "allWindows",
+      },
+    });
+    expect(withLegacyToastStyle.config.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
+    expect(withLegacyToastStyle.meta.settingSources).toEqual({});
   });
 
   it("defaults tuiCompactStatus and accepts validated nested overrides", async () => {
@@ -234,6 +242,16 @@ describe("loadConfig", () => {
       DEFAULT_CONFIG.tuiCompactStatus,
     );
     expect(withInvalidCompactFormatStyle.meta.settingSources).toEqual({});
+
+    const withLegacyCompactToastStyle = await loadSdkConfig({
+      tuiCompactStatus: {
+        toastStyle: "allWindows",
+      },
+    });
+    expect(withLegacyCompactToastStyle.config.tuiCompactStatus).toEqual(
+      DEFAULT_CONFIG.tuiCompactStatus,
+    );
+    expect(withLegacyCompactToastStyle.meta.settingSources).toEqual({});
   });
 
   it("deep-clones default config when no config source exists", async () => {

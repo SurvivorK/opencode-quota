@@ -436,7 +436,7 @@ export async function loadTuiHomeBottomStatus(params: {
     session: {},
   };
 
-  const { result } = await collectTuiQuotaRenderData({
+  const { result, compactFormatStyle } = await collectTuiQuotaRenderData({
     runtime: homeRuntime,
     request: createQuotaRuntimeRequestContext(homeRuntime),
   });
@@ -445,6 +445,7 @@ export async function loadTuiHomeBottomStatus(params: {
     runtime: homeRuntime,
     result,
     enabled: true,
+    formatStyle: compactFormatStyle,
   });
 
   return { status: "ready", announcementText, compact };
@@ -480,7 +481,7 @@ export async function loadTuiHomeCompactStatus(params: {
     session: {},
   };
 
-  const { result } = await collectTuiQuotaRenderData({
+  const { result, compactFormatStyle } = await collectTuiQuotaRenderData({
     runtime: homeRuntime,
     request: createQuotaRuntimeRequestContext(homeRuntime),
   });
@@ -489,6 +490,7 @@ export async function loadTuiHomeCompactStatus(params: {
     runtime: homeRuntime,
     result,
     enabled: true,
+    formatStyle: compactFormatStyle,
   });
 }
 

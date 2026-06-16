@@ -234,18 +234,26 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function getConfiguredFormatStyle(
-  quotaToastConfig: Partial<QuotaToastConfig> | undefined | null,
+function getExplicitFormatStyle(
+  config: { formatStyle?: unknown } | undefined | null,
 ): QuotaToastConfig["formatStyle"] | undefined {
-  if (!quotaToastConfig) {
+  if (!config || !isQuotaFormatStyle(config.formatStyle)) {
     return undefined;
   }
 
-  if (isQuotaFormatStyle(quotaToastConfig.formatStyle)) {
-    return resolveQuotaFormatStyle(quotaToastConfig.formatStyle);
+  return resolveQuotaFormatStyle(config.formatStyle);
+}
+
+function getConfiguredFormatStyle(
+  quotaToastConfig: Partial<QuotaToastConfig> | undefined | null,
+): QuotaToastConfig["formatStyle"] | undefined {
+  const formatStyle = getExplicitFormatStyle(quotaToastConfig);
+  if (formatStyle) {
+    return formatStyle;
   }
 
-  const legacyFormatStyle = (quotaToastConfig as { toastStyle?: unknown }).toastStyle;
+  const legacyFormatStyle = (quotaToastConfig as { toastStyle?: unknown } | undefined | null)
+    ?.toastStyle;
   if (isQuotaFormatStyle(legacyFormatStyle)) {
     return resolveQuotaFormatStyle(legacyFormatStyle);
   }
@@ -374,7 +382,7 @@ function extractTuiSidebarPanelPatch(value: unknown): TuiSidebarPanelPatch | und
     patch.enabled = value.enabled;
   }
 
-  const sidebarFormatStyle = getConfiguredFormatStyle(value as Partial<QuotaToastConfig>);
+  const sidebarFormatStyle = getExplicitFormatStyle(value);
   if (sidebarFormatStyle) {
     patch.formatStyle = sidebarFormatStyle;
   }
@@ -412,7 +420,7 @@ function extractTuiCompactStatusPatch(value: unknown): TuiCompactStatusPatch | u
     patch.maxWidth = value.maxWidth;
   }
 
-  const compactFormatStyle = getConfiguredFormatStyle(value as Partial<QuotaToastConfig>);
+  const compactFormatStyle = getExplicitFormatStyle(value);
   if (compactFormatStyle) {
     patch.formatStyle = compactFormatStyle;
   }
