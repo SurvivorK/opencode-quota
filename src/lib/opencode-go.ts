@@ -1,9 +1,12 @@
 /**
  * OpenCode Go dashboard scraper.
  *
- * Fetches the OpenCode Go workspace page and parses SolidJS SSR hydration
- * output for known usage windows (`rollingUsage`, `weeklyUsage`, and
- * `monthlyUsage`) containing `usagePercent` and `resetInSec`.
+ * Fetches the OpenCode Go workspace page and parses usage data from two
+ * possible formats:
+ * 1. SolidJS SSR hydration output (`$R[\d+]={...usagePercent...resetInSec...}`)
+ * 2. HTML with `data-slot` attributes (newer format)
+ *
+ * The scraper tries SolidJS SSR first, then falls back to data-slot parsing.
  */
 
 import { fetchWithTimeout } from "./http.js";
@@ -43,6 +46,15 @@ const RE_MONTHLY_RESET_FIRST = new RegExp(
   String.raw`monthlyUsage:\$R\[\d+\]=\{[^}]*resetInSec:${SCRAPED_NUMBER_PATTERN}[^}]*usagePercent:${SCRAPED_NUMBER_PATTERN}[^}]*\}`,
 );
 
+/**
+ * Regex patterns for the newer data-slot HTML format.
+ * Used for extracting usage values from HTML like:
+ * <span data-slot="usage-value"><!--$-->66<!--/-->%</span>
+ */
+const RE_DATA_SLOT_USAGE_VALUE = new RegExp(
+  String.raw`data-slot="usage-value">[^%]*${SCRAPED_NUMBER_PATTERN}%?`,
+);
+
 interface ScrapedWindowUsage {
   usagePercent: number;
   resetInSec: number;
@@ -72,6 +84,84 @@ function parseWindowUsage(
   }
 
   return null;
+}
+
+/**
+ * Parse human-readable time strings like "1 hour 56 minutes", "6 days 2 hours", "26 days 17 hours"
+ * into seconds.
+ */
+function parseHumanReadableTime(timeStr: string): number {
+  const normalized = timeStr.toLowerCase().trim();
+  let totalSeconds = 0;
+
+  // Match patterns like "X days", "X hours", "X minutes", "X seconds"
+  const dayMatch = normalized.match(/(\d+(?:\.\d+)?)\s*days?/);
+  const hourMatch = normalized.match(/(\d+(?:\.\d+)?)\s*hours?/);
+  const minuteMatch = normalized.match(/(\d+(?:\.\d+)?)\s*minutes?/);
+  const secondMatch = normalized.match(/(\d+(?:\.\d+)?)\s*seconds?/);
+
+  if (dayMatch) totalSeconds += Number(dayMatch[1]) * 86400;
+  if (hourMatch) totalSeconds += Number(hourMatch[1]) * 3600;
+  if (minuteMatch) totalSeconds += Number(minuteMatch[1]) * 60;
+  if (secondMatch) totalSeconds += Number(secondMatch[1]);
+
+  return totalSeconds;
+}
+
+/**
+ * Parse the newer data-slot HTML format.
+ * Returns a record of window names to their usage data.
+ */
+function parseDataSlotFormat(html: string): Partial<Record<string, ScrapedWindowUsage>> {
+  const result: Partial<Record<string, ScrapedWindowUsage>> = {};
+
+  // Split by usage-item to get each window's content
+  const items = html.split(/data-slot="usage-item"/);
+
+  for (let i = 1; i < items.length; i++) {
+    const itemHtml = items[i];
+    // Get content until the next usage-item or end
+    const endIndex = itemHtml.indexOf('data-slot="usage-item"');
+    const content = endIndex >= 0 ? itemHtml.substring(0, endIndex) : itemHtml;
+
+    // Extract the label (Rolling Usage, Weekly Usage, Monthly Usage)
+    const labelMatch = content.match(/data-slot="usage-label">([^<]+)</);
+    if (!labelMatch) continue;
+
+    const label = labelMatch[1].trim().toLowerCase();
+
+    // Extract usage percentage - get the number after data-slot="usage-value">
+    const usageMatch = content.match(/data-slot="usage-value">[^0-9]*(\d+(?:\.\d+)?)/);
+    if (!usageMatch) continue;
+    const usagePercent = Number(usageMatch[1]);
+
+    // Extract reset time - get content between reset-time"> and </span>
+    const resetMatch = content.match(/data-slot="reset-time">([\s\S]*?)<\/span>/);
+    if (!resetMatch) continue;
+
+    // Clean up SolidJS comments and "Resets in" prefix
+    const resetContent = resetMatch[1]
+      .replace(/<!--\$-->/g, "")
+      .replace(/<!--\/-->/g, "")
+      .replace(/Resets?\s*in\s*/i, "")
+      .trim();
+
+    const resetInSec = parseHumanReadableTime(resetContent);
+
+    if (!Number.isFinite(usagePercent) || !Number.isFinite(resetInSec) || resetInSec === 0) continue;
+
+    // Map label to window key
+    let windowKey: string | null = null;
+    if (label.includes("rolling")) windowKey = "rolling";
+    else if (label.includes("weekly")) windowKey = "weekly";
+    else if (label.includes("monthly")) windowKey = "monthly";
+
+    if (windowKey) {
+      result[windowKey] = { usagePercent, resetInSec };
+    }
+  }
+
+  return result;
 }
 
 function sanitizeMessage(text: string, maxLength = 120): string {
@@ -121,25 +211,39 @@ export async function queryOpenCodeGoQuota(
     }
 
     const html = await response.text();
+
+    // Try SolidJS SSR format first (more reliable when present)
     const rolling = parseWindowUsage(html, RE_ROLLING_PCT_FIRST, RE_ROLLING_RESET_FIRST);
     const weekly = parseWindowUsage(html, RE_WEEKLY_PCT_FIRST, RE_WEEKLY_RESET_FIRST);
     const monthly = parseWindowUsage(html, RE_MONTHLY_PCT_FIRST, RE_MONTHLY_RESET_FIRST);
 
-    if (!rolling && !weekly && !monthly) {
+    // If SolidJS SSR parsing found at least one window, use it
+    if (rolling || weekly || monthly) {
+      const now = Date.now();
       return {
-        success: false,
-        error:
-          "Could not parse any known OpenCode Go dashboard usage windows (rollingUsage, weeklyUsage, monthlyUsage)",
+        success: true,
+        ...(rolling ? { rolling: normalizeWindowUsage(rolling, now) } : {}),
+        ...(weekly ? { weekly: normalizeWindowUsage(weekly, now) } : {}),
+        ...(monthly ? { monthly: normalizeWindowUsage(monthly, now) } : {}),
       };
     }
 
-    const now = Date.now();
+    // Fall back to data-slot HTML format
+    const dataSlotResult = parseDataSlotFormat(html);
+    if (Object.keys(dataSlotResult).length > 0) {
+      const now = Date.now();
+      return {
+        success: true,
+        ...(dataSlotResult.rolling ? { rolling: normalizeWindowUsage(dataSlotResult.rolling, now) } : {}),
+        ...(dataSlotResult.weekly ? { weekly: normalizeWindowUsage(dataSlotResult.weekly, now) } : {}),
+        ...(dataSlotResult.monthly ? { monthly: normalizeWindowUsage(dataSlotResult.monthly, now) } : {}),
+      };
+    }
 
     return {
-      success: true,
-      ...(rolling ? { rolling: normalizeWindowUsage(rolling, now) } : {}),
-      ...(weekly ? { weekly: normalizeWindowUsage(weekly, now) } : {}),
-      ...(monthly ? { monthly: normalizeWindowUsage(monthly, now) } : {}),
+      success: false,
+      error:
+        "Could not parse any known OpenCode Go dashboard usage windows (rollingUsage, weeklyUsage, monthlyUsage)",
     };
   } catch (err) {
     return {
@@ -149,4 +253,4 @@ export async function queryOpenCodeGoQuota(
   }
 }
 
-export { parseWindowUsage as _parseWindowUsage };
+export { parseWindowUsage as _parseWindowUsage, parseDataSlotFormat as _parseDataSlotFormat };
