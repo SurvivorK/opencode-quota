@@ -45,10 +45,10 @@ export const BUNDLED_MAINTAINER_ANNOUNCEMENTS: readonly MaintainerAnnouncement[]
   {
     id: "gemini-cli-antigravity-transition-feedback",
     message:
-      "Gemini CLI transition: individual usage stops June 18, 2026 as users move to Antigravity CLI. Tell us if you want Antigravity CLI or companion plugin support next.",
+      "Gemini CLI transition: Google is deprecating Gemini CLI consumer/free/Pro/Ultra access on June 18, 2026. Treat Gemini CLI quota as temporary and move new Google quota setups to Antigravity.",
     url: "https://github.com/slkiser/opencode-quota/issues/125",
     startsAt: "2026-06-13T00:00:00.000Z",
-    endsAt: "2026-06-19T00:00:00.000Z",
+    endsAt: "2026-07-01T00:00:00.000Z",
     providerIds: ["google-gemini-cli"],
   },
   {
