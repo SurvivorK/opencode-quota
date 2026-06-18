@@ -454,20 +454,47 @@ async function fetchGoogleQuota(
   return response.json() as Promise<GoogleQuotaResponse>;
 }
 
+type GoogleModelConfig = (typeof GOOGLE_MODEL_KEYS)[GoogleModelId];
+
+function getModelKeyAliases(modelConfig: GoogleModelConfig): string[] {
+  return [
+    modelConfig.key,
+    ...(modelConfig.altKey?.split("|").map((key) => key.trim()).filter(Boolean) ?? []),
+  ];
+}
+
 /**
- * Map a modelId to its rate-limit family for local override lookup.
- * Families: "claude", "gemini-flash", "gemini-pro", "gpt-oss"
+ * Map configured models to the companion plugin's persisted rate-limit keys.
  */
-function getRateLimitFamily(
-  _modelId: GoogleModelId,
-  modelConfig: (typeof GOOGLE_MODEL_KEYS)[GoogleModelId],
-): "claude" | "gemini-flash" | "gemini-pro" | "gpt-oss" | null {
-  const key = modelConfig.key.toLowerCase();
-  if (key.includes("claude")) return "claude";
-  if (key.includes("flash")) return "gemini-flash";
-  if (key.includes("pro")) return "gemini-pro";
-  if (key.includes("gpt-oss")) return "gpt-oss";
-  return null;
+function getRateLimitResetKeys(modelConfig: GoogleModelConfig): string[] {
+  if (modelConfig.key.includes("claude")) return ["claude"];
+
+  // This provider reports Antigravity quota only; Gemini CLI quota is handled separately.
+  return [
+    "gemini",
+    "gemini-antigravity",
+    ...getModelKeyAliases(modelConfig).map((key) => `gemini-antigravity:${key}`),
+  ];
+}
+
+function getActiveRateLimitResetTime(
+  account: AntigravityAccount,
+  modelConfig: GoogleModelConfig,
+): number | undefined {
+  const resetTimes = account.rateLimitResetTimes;
+  if (!resetTimes) return undefined;
+
+  const now = Date.now();
+  let activeResetTime: number | undefined;
+
+  for (const key of getRateLimitResetKeys(modelConfig)) {
+    const resetTime = resetTimes[key];
+    if (typeof resetTime !== "number" || resetTime <= now) continue;
+    activeResetTime =
+      activeResetTime === undefined ? resetTime : Math.max(activeResetTime, resetTime);
+  }
+
+  return activeResetTime;
 }
 
 /**
@@ -496,20 +523,15 @@ function extractModelQuotas(
       }
     }
 
+    const activeResetTime = getActiveRateLimitResetTime(account, modelConfig);
+
     if (modelInfo) {
       let remainingFraction = modelInfo.quotaInfo?.remainingFraction ?? 0;
       let resetTimeIso: string | undefined = modelInfo.quotaInfo?.resetTime;
 
-      // Apply local rate limit overrides (rate-limited state from companion plugin)
-      if (account.rateLimitResetTimes) {
-        const family = getRateLimitFamily(modelId, modelConfig);
-        if (family && account.rateLimitResetTimes[family]) {
-          const resetTimestamp = account.rateLimitResetTimes[family];
-          if (resetTimestamp && resetTimestamp > Date.now()) {
-            remainingFraction = 0;
-            resetTimeIso = new Date(resetTimestamp).toISOString();
-          }
-        }
+      if (activeResetTime) {
+        remainingFraction = 0;
+        resetTimeIso = new Date(activeResetTime).toISOString();
       }
 
       quotas.push({
@@ -517,6 +539,14 @@ function extractModelQuotas(
         displayName: modelConfig.display,
         percentRemaining: Math.round(remainingFraction * 100),
         resetTimeIso,
+        accountEmail,
+      });
+    } else if (activeResetTime) {
+      quotas.push({
+        modelId,
+        displayName: modelConfig.display,
+        percentRemaining: 0,
+        resetTimeIso: new Date(activeResetTime).toISOString(),
         accountEmail,
       });
     }

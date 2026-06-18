@@ -113,6 +113,180 @@ describe("google antigravity multi-account refresh", () => {
     }
   });
 
+  it("applies actual companion reset keys to remote quota buckets", async () => {
+    const { readFile } = await import("fs/promises");
+    (readFile as any).mockResolvedValueOnce(
+      JSON.stringify({
+        version: 1,
+        accounts: [
+          {
+            email: "a@b.com",
+            refreshToken: "rtok",
+            projectId: "proj",
+            addedAt: 0,
+            lastUsed: 0,
+            rateLimitResetTimes: {
+              claude: Date.parse("2026-01-01T02:00:00.000Z"),
+              gemini: Date.parse("2026-01-01T03:00:00.000Z"),
+              "gemini-antigravity": Date.parse("2026-01-01T04:00:00.000Z"),
+            },
+          },
+        ],
+      }),
+    );
+
+    const fetchSpy = vi.fn();
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: "new_token", expires_in: 3600 }),
+    });
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          models: {
+            "claude-opus-4-6-thinking": {
+              quotaInfo: { remainingFraction: 0.75, resetTime: "2026-01-01T01:00:00Z" },
+            },
+            "gemini-3-flash": {
+              quotaInfo: { remainingFraction: 0.5, resetTime: "2026-01-01T01:30:00Z" },
+            },
+          },
+        }),
+    });
+
+    vi.stubGlobal("fetch", fetchSpy as any);
+
+    const out = await queryGoogleQuota(["CLAUDE", "G3FLASH"] as any);
+
+    expect(out).not.toBeNull();
+    expect(out!.success).toBe(true);
+    if (out!.success) {
+      expect(out!.models).toEqual([
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          percentRemaining: 0,
+          resetTimeIso: "2026-01-01T02:00:00.000Z",
+          accountEmail: "a@b.com",
+        },
+        {
+          modelId: "G3FLASH",
+          displayName: "G3Flash",
+          percentRemaining: 0,
+          resetTimeIso: "2026-01-01T04:00:00.000Z",
+          accountEmail: "a@b.com",
+        },
+      ]);
+    }
+  });
+
+  it("preserves configured GPT-OSS alias reset rows when the remote bucket is missing", async () => {
+    const { readFile } = await import("fs/promises");
+    (readFile as any).mockResolvedValueOnce(
+      JSON.stringify({
+        version: 1,
+        accounts: [
+          {
+            email: "a@b.com",
+            refreshToken: "rtok",
+            projectId: "proj",
+            addedAt: 0,
+            lastUsed: 0,
+            rateLimitResetTimes: {
+              "gemini-antigravity:gpt-oss-120b-high": Date.parse("2026-01-01T05:00:00.000Z"),
+            },
+          },
+        ],
+      }),
+    );
+
+    const fetchSpy = vi.fn();
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: "new_token", expires_in: 3600 }),
+    });
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ models: {} }),
+    });
+
+    vi.stubGlobal("fetch", fetchSpy as any);
+
+    const out = await queryGoogleQuota(["GPTOSS", "G3PRO"] as any);
+
+    expect(out).not.toBeNull();
+    expect(out!.success).toBe(true);
+    if (out!.success) {
+      expect(out!.models).toEqual([
+        {
+          modelId: "GPTOSS",
+          displayName: "GPT-OSS",
+          percentRemaining: 0,
+          resetTimeIso: "2026-01-01T05:00:00.000Z",
+          accountEmail: "a@b.com",
+        },
+      ]);
+    }
+  });
+
+  it("ignores expired reset rows and missing remote buckets", async () => {
+    const { readFile } = await import("fs/promises");
+    (readFile as any).mockResolvedValueOnce(
+      JSON.stringify({
+        version: 1,
+        accounts: [
+          {
+            email: "a@b.com",
+            refreshToken: "rtok",
+            projectId: "proj",
+            addedAt: 0,
+            lastUsed: 0,
+            rateLimitResetTimes: {
+              "gemini-antigravity:gpt-oss-120b-high": Date.parse("2025-12-31T23:59:00.000Z"),
+              "gemini-antigravity:gemini-3.1-pro": Date.parse("2025-12-31T23:59:00.000Z"),
+            },
+          },
+        ],
+      }),
+    );
+
+    const fetchSpy = vi.fn();
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ access_token: "new_token", expires_in: 3600 }),
+    });
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          models: {
+            "gpt-oss-120b-medium": {
+              quotaInfo: { remainingFraction: 0.5, resetTime: "2026-01-01T01:30:00Z" },
+            },
+          },
+        }),
+    });
+
+    vi.stubGlobal("fetch", fetchSpy as any);
+
+    const out = await queryGoogleQuota(["GPTOSS", "G3PRO"] as any);
+
+    expect(out).not.toBeNull();
+    expect(out!.success).toBe(true);
+    if (out!.success) {
+      expect(out!.models).toEqual([
+        {
+          modelId: "GPTOSS",
+          displayName: "GPT-OSS",
+          percentRemaining: 50,
+          resetTimeIso: "2026-01-01T01:30:00Z",
+          accountEmail: "a@b.com",
+        },
+      ]);
+    }
+  });
+
   it("returns a deterministic error when the companion plugin is missing", async () => {
     const { readFile } = await import("fs/promises");
     (readFile as any).mockResolvedValueOnce(

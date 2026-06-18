@@ -419,7 +419,7 @@ Existing `experimental.quotaToast` settings still work when no sidecar file exis
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `anthropicBinaryPath` | `"claude"` | Command/path used for local Claude CLI probing. |
-| `googleModels` | `["CLAUDE"]` | Google model keys to query: `CLAUDE`, `G3PRO`, `G3FLASH`, `G3IMAGE`. |
+| `googleModels` | `["CLAUDE"]` | Google model keys to query: `CLAUDE`, `G3PRO`, `G3FLASH`, `G3IMAGE`, `GPTOSS`. |
 | `opencodeGoWindows` | `["rolling", "weekly", "monthly"]` | OpenCode Go usage windows to display. |
 | `alibabaCodingPlanTier` | `"lite"` | Fallback Alibaba Coding Plan tier when auth does not include `tier`. |
 | `cursorPlan` | `"none"` | Cursor included API budget preset: `none`, `pro`, `pro-plus`, `ultra`. |
