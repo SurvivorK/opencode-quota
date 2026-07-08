@@ -271,6 +271,87 @@ describe("minimax-coding-plan provider", () => {
     );
   });
 
+  it("accepts international generic model_name rows", async () => {
+    mockMiniMaxAuthConfigured();
+    mockMiniMaxHttpSuccess([
+      createCodingPlanModel({
+        model_name: "general",
+        current_interval_total_count: 0,
+        current_interval_usage_count: 0,
+        current_weekly_total_count: undefined,
+        current_weekly_usage_count: undefined,
+        weekly_remains_time: undefined,
+      }),
+      createCodingPlanModel({
+        model_name: "video",
+        current_interval_total_count: 3,
+        current_interval_usage_count: 3,
+        current_weekly_total_count: undefined,
+        current_weekly_usage_count: undefined,
+        weekly_remains_time: undefined,
+      }),
+    ]);
+
+    const out = await runProviderFetch();
+
+    expectAttemptedWithNoErrors(out);
+    expect(out.entries).toHaveLength(1);
+    expect(out.entries[0]).toMatchObject({
+      window: "five_hour",
+      right: "0/3",
+      percentRemaining: 100,
+    });
+  });
+
+  it("selects the lowest-remaining international generic row", async () => {
+    mockMiniMaxAuthConfigured();
+    mockMiniMaxHttpSuccess([
+      createCodingPlanModel({
+        model_name: "general",
+        current_interval_total_count: 10,
+        current_interval_usage_count: 2,
+        current_weekly_total_count: undefined,
+        current_weekly_usage_count: undefined,
+        weekly_remains_time: undefined,
+      }),
+      createCodingPlanModel({
+        model_name: "video",
+        current_interval_total_count: 10,
+        current_interval_usage_count: 8,
+        current_weekly_total_count: undefined,
+        current_weekly_usage_count: undefined,
+        weekly_remains_time: undefined,
+      }),
+    ]);
+
+    const out = await runProviderFetch();
+
+    expectAttemptedWithNoErrors(out);
+    expect(out.entries).toHaveLength(1);
+    expect(out.entries[0]).toMatchObject({
+      window: "five_hour",
+      right: "8/10",
+      percentRemaining: 20,
+    });
+  });
+
+  it("does not accept generic model_name rows for the China endpoint", async () => {
+    mockMiniMaxHttpSuccess([
+      createCodingPlanModel({
+        model_name: "general",
+        current_interval_total_count: 10,
+        current_interval_usage_count: 8,
+        current_weekly_total_count: undefined,
+        current_weekly_usage_count: undefined,
+        weekly_remains_time: undefined,
+      }),
+    ]);
+
+    const out = await queryMiniMaxQuota("china-key", { endpoint: "china" });
+
+    expect(out).toEqual({ success: true, entries: [] });
+  });
+
   it("preserves negative remaining percentages when MiniMax reports negative remaining quota", async () => {
     mockMiniMaxAuthConfigured();
     mockMiniMaxHttpSuccess([

@@ -137,9 +137,16 @@ function normalizeMiniMaxCounts(
   return { used: total - remaining, remaining };
 }
 
-function isMiniMaxCodingModelName(modelName: string): boolean {
+function isMiniMaxCodingModelName(
+  modelName: string,
+  endpointId: MiniMaxQuotaEndpointId = "international",
+): boolean {
   const normalized = modelName.trim().toLowerCase();
-  return normalized === "minimax-m*" || normalized.startsWith("minimax-m");
+  if (normalized === "minimax-m*" || normalized.startsWith("minimax-m")) {
+    return true;
+  }
+
+  return endpointId === "international" && (normalized === "general" || normalized === "video");
 }
 
 function buildMiniMaxEntry(
@@ -210,7 +217,7 @@ function selectCanonicalMiniMaxModel(
 /**
  * Fetch MiniMax coding plan quota from the API.
  *
- * Parses usage specifically for `MiniMax-M*` text models.
+ * Parses usage for MiniMax coding-plan models returned by the selected endpoint.
  *
  * @param apiKey - MiniMax API key
  * @returns Quota entries on success, error on failure, or empty entries when
@@ -255,7 +262,7 @@ export async function queryMiniMaxQuota(
 
     const matchingModels = (payload.model_remains ?? []).filter(
       (model): model is MiniMaxModelRemain =>
-        isMiniMaxModelRecord(model) && isMiniMaxCodingModelName(model.model_name),
+        isMiniMaxModelRecord(model) && isMiniMaxCodingModelName(model.model_name, endpointId),
     );
     const canonicalModel = selectCanonicalMiniMaxModel(matchingModels, countSemantics);
     const entries = canonicalModel
