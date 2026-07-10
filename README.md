@@ -183,4 +183,4 @@ OpenCode Quota is not built by the OpenCode team and is not affiliated with Open
 
 ## Star history
 
-[![Star History Chart](https://api.star-history.com/chart?repos=slkiser/opencode-quota&type=date&legend=bottom-right)](https://www.star-history.com/?repos=slkiser%2Fopencode-quota&type=date&legend=bottom-right)
+![Star History Chart](https://shawnkiser.com/opencode-quota/star-history-2026710.webp)
