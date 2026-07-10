@@ -14,7 +14,7 @@ Use the installer when possible. For manual install, use the same OpenCode confi
 
 ### 1. Add the server plugin (required)
 
-This enables providers, terminal checks, popup toasts, web/desktop slash commands, and the `tool.quota_status` tool. Add this to `opencode.json` or `opencode.jsonc`:
+This enables providers, terminal checks, popup toasts, the inline slash commands shared by TUI and Desktop/server, and the `tool.quota_status` tool. Add this to `opencode.json` or `opencode.jsonc`:
 
 ```jsonc
 {
@@ -23,9 +23,9 @@ This enables providers, terminal checks, popup toasts, web/desktop slash command
 }
 ```
 
-### 2. Add the TUI plugin (for local dialogs and TUI surfaces)
+### 2. Add the TUI plugin (for TUI surfaces)
 
-Add this to `tui.json` or `tui.jsonc` for local `/quota`, `/quota_status`, `/quota_announcements`, `/pricing_refresh`, `/tokens_*` dialogs, the Sidebar panel, Compact status line, and maintainer announcement home notices:
+Add this to `tui.json` or `tui.jsonc` for the Sidebar panel, Compact status line, and maintainer announcement home notices. Slash commands remain owned by the server plugin and render deterministic inline output; the TUI plugin does not register command popups:
 
 ```jsonc
 {
@@ -68,13 +68,13 @@ Start with this, then adjust the UI choices in the next section:
 
 All UI surfaces use the same quota data. Put these settings in `opencode-quota/quota-toast.json`, not `tui.json`.
 
-| I want... | Enable/configure |
-| --- | --- |
-| Full `Quota` sidebar panel | `tuiSidebarPanel.enabled: true` |
-| Popup quota notifications | `enableToast: true` |
-| Compact status line | `tuiCompactStatus.enabled: true` |
-| Web/desktop slash commands | Server plugin entry in `opencode.json` |
-| Local TUI dialogs | TUI plugin entry in `tui.json` |
-| No automatic UI surfaces | `enableToast: false`, `tuiSidebarPanel.enabled: false`, `tuiCompactStatus.enabled: false` |
+| I want...                                       | Enable/configure                                                                          |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Full `Quota` sidebar panel                      | `tuiSidebarPanel.enabled: true`                                                           |
+| Popup quota notifications                       | `enableToast: true`                                                                       |
+| Compact status line                             | `tuiCompactStatus.enabled: true`                                                          |
+| Inline slash commands in TUI and Desktop/server | Server plugin entry in `opencode.json`                                                    |
+| Sidebar, compact status, and home notice        | TUI plugin entry in `tui.json`                                                            |
+| No automatic UI surfaces                        | `enableToast: false`, `tuiSidebarPanel.enabled: false`, `tuiCompactStatus.enabled: false` |
 
 For every option and more recipes, see [Configuration](configuration.md).

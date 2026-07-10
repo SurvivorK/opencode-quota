@@ -8,15 +8,14 @@ UI surface choices, common recipes, and the full configuration reference.
 
 All UI surfaces use the same quota data. Put these settings in `opencode-quota/quota-toast.json`, not `tui.json`.
 
-| UI surface | Config | Notes |
-| --- | --- | --- |
-| Sidebar panel | `tuiSidebarPanel.enabled: true` | Full `Quota` panel in OpenCode's session sidebar. Requires the TUI plugin entry above. |
-| Toast | `enableToast: true` | Popup toast after idle/question/compact events. Requires the server plugin entry above. |
-| Compact status line | `tuiCompactStatus.enabled: true` | Short text-only quota line at the home bottom and chat/session prompt locations, for example `Copilot 94% | OpenAI Pro 5h 100%, 7d 100%`. Requires the TUI plugin entry above. |
-| Maintainer announcement notice | `maintainerAnnouncements.enabled: true`, `maintainerAnnouncements.home: true` | Prefers the TUI home notice when the quota TUI plugin is configured. Without the TUI plugin, shows the same count-only notice once after the first visible quota toast. |
-| Web/desktop slash commands | Server plugin entry in `opencode.json` | `/quota`, `/quota_status`, `/quota_announcements`, `/pricing_refresh`, and `/tokens_*` show deterministic ignored/no-reply output without calling the model. |
-| Dialog slash commands | TUI plugin entry in `tui.json` | The same commands open local TUI dialogs. They do not call the model and do not write command output to the OpenCode session transcript. |
-| No automatic UI surfaces | `enableToast: false`, `tuiSidebarPanel.enabled: false`, `tuiCompactStatus.enabled: false` | Skips toast/sidebar/compact/TUI dialog surfaces while keeping server web/desktop slash commands and `opencode-quota show` available. Maintainer announcements use the separate installer question/config and can be opted out if desired. |
+| UI surface                     | Config                                                                                    | Notes                                                                                                                                                                                                                                                                          |
+| ------------------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sidebar panel                  | `tuiSidebarPanel.enabled: true`                                                           | Full `Quota` panel in OpenCode's session sidebar. Requires the TUI plugin entry above.                                                                                                                                                                                         |
+| Toast                          | `enableToast: true`                                                                       | Popup toast after idle/question/compact events. Requires the server plugin entry above.                                                                                                                                                                                        |
+| Compact status line            | `tuiCompactStatus.enabled: true`                                                          | Short text-only quota line at the home bottom and chat/session prompt locations, for example `Copilot 94% \| OpenAI Pro 5h 100%, 7d 100%`. Requires the TUI plugin entry above.                                                                                                |
+| Maintainer announcement notice | `maintainerAnnouncements.enabled: true`, `maintainerAnnouncements.home: true`             | Prefers the TUI home notice when the quota TUI plugin is configured. Without the TUI plugin, shows the same count-only notice once after the first visible quota toast.                                                                                                        |
+| Inline slash commands          | Server plugin entry in `opencode.json`                                                    | `/quota`, `/quota_status`, `/quota_announcements`, `/pricing_refresh`, and `/tokens_*` are registered once and shared by TUI and Desktop/server. They inject deterministic ignored/no-reply output without calling the model. The TUI plugin does not register command popups. |
+| No automatic UI surfaces       | `enableToast: false`, `tuiSidebarPanel.enabled: false`, `tuiCompactStatus.enabled: false` | Skips toast/sidebar/compact surfaces while keeping inline slash commands and `opencode-quota show` available. Maintainer announcements use the separate installer question/config and can be opted out if desired.                                                             |
 
 Selecting Compact status line in the installer enables both compact surfaces by default. To keep compact status home-only, set `tuiCompactStatus.sessionPrompt: false`.
 
@@ -105,7 +104,7 @@ Set `enabled: false` to disable automatic announcement surfaces. `/quota_announc
 <details>
 <summary><strong>Turn off the Sidebar panel</strong></summary>
 
-Useful when you want Compact status line only, toasts only, or installed TUI dialogs without the Sidebar panel.
+Useful when you want Compact status line only, toasts only, or inline slash commands without the Sidebar panel.
 
 ```jsonc
 {
@@ -154,7 +153,7 @@ Writes a JSON file after each TUI background refresh for consumption by external
 {
   "export": {
     "enabled": true,
-  }
+  },
 }
 ```
 
@@ -184,71 +183,71 @@ Existing `experimental.quotaToast` settings still work when no sidecar file exis
 
 ### Core/shared settings
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `enabled` | `true` | Master switch for quota collection and handled slash commands. When `false`, `/quota`, `/quota_status`, `/pricing_refresh`, and `/tokens_*` are handled as no-ops. |
-| `enabledProviders` | `"auto"` | Auto-detect providers, or set an explicit provider list. |
-| `minIntervalMs` | `300000` | Minimum fetch interval between provider updates. |
-| `requestTimeoutMs` | `5000` | Remote provider request timeout in milliseconds. |
-| `formatStyle` | `singleWindow` | Shared quota reset-period display for popup toasts, the Sidebar panel, and Compact status line unless a TUI surface override is set: `singleWindow` shows one reset period per provider; `allWindows` shows all reset periods per provider. Legacy `classic`/`grouped` aliases are still accepted. |
-| `percentDisplayMode` | `remaining` | Shared quota percentage meaning for popup toasts, the Sidebar panel, and `/quota`: `remaining` shows quota left; `used` shows quota consumed. |
-| `onlyCurrentModel` | `false` | Filter quota rows to the current model/provider when that session selection can be resolved. |
-| `showSessionTokens` | `true` | Show the `Session input/output tokens` section when session token data is available. When cached input is present, the section keeps the legacy `in/out` layout and appends cached input in parentheses next to the input amount. |
-| `pricingSnapshot.source` | `"auto"` | Token pricing snapshot selection for `/tokens_*`: `auto`, `bundled`, or `runtime`. |
-| `pricingSnapshot.autoRefresh` | `7` | Refresh stale local pricing data after this many days. |
+| Option                        | Default        | Meaning                                                                                                                                                                                                                                                                                            |
+| ----------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                     | `true`         | Master switch for quota collection and handled slash commands. When `false`, `/quota`, `/quota_status`, `/pricing_refresh`, and `/tokens_*` are handled as no-ops.                                                                                                                                 |
+| `enabledProviders`            | `"auto"`       | Auto-detect providers, or set an explicit provider list.                                                                                                                                                                                                                                           |
+| `minIntervalMs`               | `300000`       | Minimum fetch interval between provider updates.                                                                                                                                                                                                                                                   |
+| `requestTimeoutMs`            | `5000`         | Remote provider request timeout in milliseconds.                                                                                                                                                                                                                                                   |
+| `formatStyle`                 | `singleWindow` | Shared quota reset-period display for popup toasts, the Sidebar panel, and Compact status line unless a TUI surface override is set: `singleWindow` shows one reset period per provider; `allWindows` shows all reset periods per provider. Legacy `classic`/`grouped` aliases are still accepted. |
+| `percentDisplayMode`          | `remaining`    | Shared quota percentage meaning for popup toasts, the Sidebar panel, and `/quota`: `remaining` shows quota left; `used` shows quota consumed.                                                                                                                                                      |
+| `onlyCurrentModel`            | `false`        | Filter quota rows to the current model/provider when that session selection can be resolved.                                                                                                                                                                                                       |
+| `showSessionTokens`           | `true`         | Show the `Session input/output tokens` section when session token data is available. When cached input is present, the section keeps the legacy `in/out` layout and appends cached input in parentheses next to the input amount.                                                                  |
+| `pricingSnapshot.source`      | `"auto"`       | Token pricing snapshot selection for `/tokens_*`: `auto`, `bundled`, or `runtime`.                                                                                                                                                                                                                 |
+| `pricingSnapshot.autoRefresh` | `7`            | Refresh stale local pricing data after this many days.                                                                                                                                                                                                                                             |
 
 ### Toast settings
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `enableToast` | `true` | Show popup toasts. Disabling this does not disable terminal checks, UI surfaces, or `/quota`. |
-| `toastDurationMs` | `9000` | Toast duration in milliseconds. |
-| `showOnIdle` | `true` | Show a toast on the idle trigger. |
-| `showOnQuestion` | `true` | Show a toast after a question/assistant response. |
-| `showOnCompact` | `true` | Show a toast after session compaction. |
-| `showOnBothFail` | `true` | Show a fallback toast when providers attempted quota reads and all failed. |
-| `layout.maxWidth` | `50` | Toast formatting width target. |
-| `layout.narrowAt` | `42` | Toast compact-layout breakpoint. |
-| `layout.tinyAt` | `32` | Toast tiny-layout breakpoint. |
-| `debug` | `false` | Append toast debug context when troubleshooting. |
+| Option            | Default | Meaning                                                                                       |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `enableToast`     | `true`  | Show popup toasts. Disabling this does not disable terminal checks, UI surfaces, or `/quota`. |
+| `toastDurationMs` | `9000`  | Toast duration in milliseconds.                                                               |
+| `showOnIdle`      | `true`  | Show a toast on the idle trigger.                                                             |
+| `showOnQuestion`  | `true`  | Show a toast after a question/assistant response.                                             |
+| `showOnCompact`   | `true`  | Show a toast after session compaction.                                                        |
+| `showOnBothFail`  | `true`  | Show a fallback toast when providers attempted quota reads and all failed.                    |
+| `layout.maxWidth` | `50`    | Toast formatting width target.                                                                |
+| `layout.narrowAt` | `42`    | Toast compact-layout breakpoint.                                                              |
+| `layout.tinyAt`   | `32`    | Toast tiny-layout breakpoint.                                                                 |
+| `debug`           | `false` | Append toast debug context when troubleshooting.                                              |
 
 ### TUI settings
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `tuiSidebarPanel.enabled` | `true` | Show the Sidebar `Quota` panel when the TUI plugin is installed. Click the panel header to toggle between compact summary and detailed all-windows views; OpenCode remembers the last state. |
-| `tuiSidebarPanel.formatStyle` | (root `formatStyle`) | Override `formatStyle` for the Sidebar panel only. Useful when you want `allWindows` detail in the sidebar but a different style elsewhere. |
-| `tuiCompactStatus.enabled` | `false` | Opt in to Compact status line UI surfaces. |
-| `tuiCompactStatus.homeBottom` | `true` | Show the Compact status line at the home bottom location. |
-| `tuiCompactStatus.sessionPrompt` | `true` | Show the Compact status line by wrapping the TUI session prompt. Disable this if you only want the home-bottom line. |
-| `tuiCompactStatus.suppressWhenNativeProviderQuota` | `true` | Hide the Compact status line when OpenCode exposes native provider-quota support. |
-| `tuiCompactStatus.maxWidth` | `96` | Maximum Compact status line text width. |
-| `tuiCompactStatus.formatStyle` | (root `formatStyle`) | Override `formatStyle` for the Compact status line only. Useful when you want `singleWindow` on the compact line while the sidebar shows `allWindows`. |
+| Option                                             | Default              | Meaning                                                                                                                                                                                      |
+| -------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuiSidebarPanel.enabled`                          | `true`               | Show the Sidebar `Quota` panel when the TUI plugin is installed. Click the panel header to toggle between compact summary and detailed all-windows views; OpenCode remembers the last state. |
+| `tuiSidebarPanel.formatStyle`                      | (root `formatStyle`) | Override `formatStyle` for the Sidebar panel only. Useful when you want `allWindows` detail in the sidebar but a different style elsewhere.                                                  |
+| `tuiCompactStatus.enabled`                         | `false`              | Opt in to Compact status line UI surfaces.                                                                                                                                                   |
+| `tuiCompactStatus.homeBottom`                      | `true`               | Show the Compact status line at the home bottom location.                                                                                                                                    |
+| `tuiCompactStatus.sessionPrompt`                   | `true`               | Show the Compact status line by wrapping the TUI session prompt. Disable this if you only want the home-bottom line.                                                                         |
+| `tuiCompactStatus.suppressWhenNativeProviderQuota` | `true`               | Hide the Compact status line when OpenCode exposes native provider-quota support.                                                                                                            |
+| `tuiCompactStatus.maxWidth`                        | `96`                 | Maximum Compact status line text width.                                                                                                                                                      |
+| `tuiCompactStatus.formatStyle`                     | (root `formatStyle`) | Override `formatStyle` for the Compact status line only. Useful when you want `singleWindow` on the compact line while the sidebar shows `allWindows`.                                       |
 
 ### Maintainer announcement settings
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `maintainerAnnouncements.enabled` | `true` | Enable bundled maintainer announcements. |
-| `maintainerAnnouncements.home` | `true` | Show the count-only notice on TUI home when the quota TUI plugin is configured, or as a one-shot toast fallback after a visible quota toast when it is not. |
+| Option                            | Default | Meaning                                                                                                                                                     |
+| --------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maintainerAnnouncements.enabled` | `true`  | Enable bundled maintainer announcements.                                                                                                                    |
+| `maintainerAnnouncements.home`    | `true`  | Show the count-only notice on TUI home when the quota TUI plugin is configured, or as a one-shot toast fallback after a visible quota toast when it is not. |
 
 ### Provider-specific settings
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `anthropicBinaryPath` | `"claude"` | Command/path used for local Claude CLI probing. |
-| `googleModels` | `["CLAUDE"]` | Google model keys to query: `CLAUDE`, `G3PRO`, `G3FLASH`, `G3IMAGE`, `GPTOSS`. |
-| `opencodeGoWindows` | `["rolling", "weekly", "monthly"]` | OpenCode Go usage windows to display. |
-| `alibabaCodingPlanTier` | `"lite"` | Fallback Alibaba Coding Plan tier when auth does not include `tier`. |
-| `cursorPlan` | `"none"` | Cursor included API budget preset: `none`, `pro`, `pro-plus`, `ultra`. |
-| `cursorIncludedApiUsd` | unset | Override Cursor monthly included API budget in USD. |
-| `cursorBillingCycleStartDay` | unset | Local billing-cycle anchor day `1..28`; when unset, Cursor usage resets on the local calendar month. |
+| Option                       | Default                            | Meaning                                                                                              |
+| ---------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `anthropicBinaryPath`        | `"claude"`                         | Command/path used for local Claude CLI probing.                                                      |
+| `googleModels`               | `["CLAUDE"]`                       | Google model keys to query: `CLAUDE`, `G3PRO`, `G3FLASH`, `G3IMAGE`, `GPTOSS`.                       |
+| `opencodeGoWindows`          | `["rolling", "weekly", "monthly"]` | OpenCode Go usage windows to display.                                                                |
+| `alibabaCodingPlanTier`      | `"lite"`                           | Fallback Alibaba Coding Plan tier when auth does not include `tier`.                                 |
+| `cursorPlan`                 | `"none"`                           | Cursor included API budget preset: `none`, `pro`, `pro-plus`, `ultra`.                               |
+| `cursorIncludedApiUsd`       | unset                              | Override Cursor monthly included API budget in USD.                                                  |
+| `cursorBillingCycleStartDay` | unset                              | Local billing-cycle anchor day `1..28`; when unset, Cursor usage resets on the local calendar month. |
 
 ### Export settings
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `export.enabled` | `false` | Write a JSON export file after each TUI background refresh. |
-| `export.path` | `""` | Export file path. Empty string uses the XDG default: `$XDG_CACHE_HOME/opencode/quota-export.json`. Supports `~/` expansion. |
+| Option           | Default | Meaning                                                                                                                     |
+| ---------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `export.enabled` | `false` | Write a JSON export file after each TUI background refresh.                                                                 |
+| `export.path`    | `""`    | Export file path. Empty string uses the XDG default: `$XDG_CACHE_HOME/opencode/quota-export.json`. Supports `~/` expansion. |
 
 </details>

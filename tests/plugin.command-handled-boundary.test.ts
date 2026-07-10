@@ -137,6 +137,10 @@ describe("plugin command handled boundary", () => {
 
     expect(hooks["command.execute.before"]).toBeDefined();
     expect(cfg.command).toBeDefined();
+    expect(QUOTA_DIALOG_COMMANDS).toHaveLength(12);
+    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.id)).size).toBe(12);
+    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.slashName)).size).toBe(12);
+    expect(Object.keys(cfg.command ?? {})).toHaveLength(12);
     for (const spec of QUOTA_DIALOG_COMMANDS) {
       expect(cfg.command?.[spec.id]).toEqual({
         template: `/${spec.slashName}`,
@@ -185,6 +189,28 @@ describe("plugin command handled boundary", () => {
     );
     expect(getPromptText(client)).toContain("Quota unavailable");
     expect(getPromptText(client)).toContain("No quota providers detected");
+  });
+
+  it("handles /tokens_between arguments through one inline injection", async () => {
+    const { client } = await runServerCommand({
+      command: "tokens_between",
+      arguments: "not-a-date-range",
+      sessionID: "session-between",
+    });
+
+    expect(client.session.prompt).toHaveBeenCalledTimes(1);
+    expect(getPromptText(client)).toContain("Invalid arguments for /tokens_between");
+  });
+
+  it("injects inline usage output when /tokens_between arguments are missing", async () => {
+    const { client } = await runServerCommand({
+      command: "tokens_between",
+      sessionID: "session-between-missing",
+    });
+
+    expect(client.session.prompt).toHaveBeenCalledTimes(1);
+    expect(getPromptText(client)).toContain("Invalid arguments for /tokens_between");
+    expect(getPromptText(client)).toContain("Expected: /tokens_between YYYY-MM-DD YYYY-MM-DD");
   });
 
   it("propagates server slash command injection failures instead of throwing handled", async () => {
@@ -252,7 +278,11 @@ describe("plugin command handled boundary", () => {
     mocks.loadConfig.mockResolvedValue(makeQuotaToastTestConfig({ enabled: false }));
     const client = createClient();
 
-    const daily = await buildDialogOutput({ command: "tokens_daily", client, sessionID: "session-disabled" });
+    const daily = await buildDialogOutput({
+      command: "tokens_daily",
+      client,
+      sessionID: "session-disabled",
+    });
     const tree = await buildDialogOutput({
       command: "tokens_session_all",
       client,
