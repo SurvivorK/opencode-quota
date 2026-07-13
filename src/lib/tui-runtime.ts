@@ -1,7 +1,11 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
 import type { CompactStatusState, HomeBottomState, SidebarPanelState } from "./tui-panel-state.js";
 
-import type { CollectQuotaRenderDataResult, SessionModelMeta } from "./quota-render-data.js";
+import type {
+  CollectQuotaRenderDataResult,
+  QuotaRenderData,
+  SessionModelMeta,
+} from "./quota-render-data.js";
 import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
 
 import { resolveRuntimeContextRoots, type RuntimeContextRootHints } from "./config-file-utils.js";
@@ -12,6 +16,11 @@ import {
 } from "./quota-runtime-context.js";
 import { collectConcreteEnabledProviderIds, collectQuotaRenderData } from "./quota-render-data.js";
 import { resolveQuotaFormatStyle } from "./quota-format-style.js";
+import {
+  markActiveOpenCodeGoEntries,
+  resolveCurrentOpenCodeGoAccount,
+  type CurrentOpenCodeGoAccount,
+} from "./opencode-go-active.js";
 import { buildCompactQuotaStatusLine } from "./tui-compact-format.js";
 import { hasNativeProviderQuotaClient } from "./tui-native-provider-quota.js";
 import { buildSidebarQuotaPanelLines, TUI_SIDEBAR_MAX_WIDTH } from "./tui-sidebar-format.js";
@@ -284,6 +293,28 @@ function buildSidebarPanelFromData(params: {
   };
 }
 
+function markCurrentAccountInTuiData(
+  data: QuotaRenderData | null,
+  current: CurrentOpenCodeGoAccount | null,
+): QuotaRenderData | null {
+  if (!data) return data;
+  return {
+    ...data,
+    entries: markActiveOpenCodeGoEntries(
+      data.entries,
+      current?.accountId ?? null,
+      current?.config,
+    ),
+  };
+}
+
+function markCurrentAccountInOptionalTuiData(
+  data: QuotaRenderData | null | undefined,
+  current: CurrentOpenCodeGoAccount | null,
+): QuotaRenderData | null | undefined {
+  return data === undefined ? undefined : markCurrentAccountInTuiData(data, current);
+}
+
 async function collectTuiQuotaRenderData(params: {
   runtime: QuotaRuntimeContext;
   request: ReturnType<typeof createQuotaRuntimeRequestContext>;
@@ -300,7 +331,7 @@ async function collectTuiQuotaRenderData(params: {
   const compactFormatStyle = params.runtime.config.tuiCompactStatus.formatStyle
     ? resolveQuotaFormatStyle(params.runtime.config.tuiCompactStatus.formatStyle)
     : formatStyle;
-  const result = await collectQuotaRenderData({
+  const collected = await collectQuotaRenderData({
     client: params.runtime.client,
     config: params.runtime.config,
     configMeta: params.runtime.configMeta,
@@ -310,6 +341,13 @@ async function collectTuiQuotaRenderData(params: {
     providers: params.runtime.providers,
     includeAllWindowsData: true,
   });
+  const current = await resolveCurrentOpenCodeGoAccount();
+  const result: CollectQuotaRenderDataResult = {
+    ...collected,
+    data: markCurrentAccountInTuiData(collected.data, current),
+    allWindowsData: markCurrentAccountInOptionalTuiData(collected.allWindowsData, current),
+    singleWindowData: markCurrentAccountInOptionalTuiData(collected.singleWindowData, current),
+  };
 
   return { result, formatStyle, sidebarFormatStyle, compactFormatStyle };
 }

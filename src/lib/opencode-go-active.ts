@@ -3,6 +3,11 @@ import { readAuthFile } from "./opencode-auth.js";
 import { resolveOpenCodeGoConfig, type OpenCodeGoConfig } from "./opencode-go-config.js";
 import type { AuthData } from "./types.js";
 
+export interface CurrentOpenCodeGoAccount {
+  config: OpenCodeGoConfig;
+  accountId: string | null;
+}
+
 export function findActiveOpenCodeGoAccountId(
   config: OpenCodeGoConfig,
   auth: AuthData | null | undefined,
@@ -50,12 +55,19 @@ export function markActiveOpenCodeGoEntries(
 export async function markCurrentOpenCodeGoEntries(
   entries: QuotaToastEntry[],
 ): Promise<QuotaToastEntry[]> {
+  const current = await resolveCurrentOpenCodeGoAccount();
+  return markActiveOpenCodeGoEntries(entries, current?.accountId ?? null, current?.config);
+}
+
+export async function resolveCurrentOpenCodeGoAccount(): Promise<CurrentOpenCodeGoAccount | null> {
   const config = await resolveOpenCodeGoConfig();
   if (config.state !== "configured") {
-    return markActiveOpenCodeGoEntries(entries, null);
+    return null;
   }
 
   const auth = await readAuthFile();
-  const activeAccountId = findActiveOpenCodeGoAccountId(config.config, auth);
-  return markActiveOpenCodeGoEntries(entries, activeAccountId, config.config);
+  return {
+    config: config.config,
+    accountId: findActiveOpenCodeGoAccountId(config.config, auth),
+  };
 }

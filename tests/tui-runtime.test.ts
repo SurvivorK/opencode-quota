@@ -3,11 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { collectQuotaRenderData, buildCompactQuotaStatusLine, buildSidebarQuotaPanelLines } =
+const {
+  collectQuotaRenderData,
+  buildCompactQuotaStatusLine,
+  buildSidebarQuotaPanelLines,
+  resolveCurrentOpenCodeGoAccount,
+} =
   vi.hoisted(() => ({
     collectQuotaRenderData: vi.fn(),
     buildCompactQuotaStatusLine: vi.fn(),
     buildSidebarQuotaPanelLines: vi.fn(),
+    resolveCurrentOpenCodeGoAccount: vi.fn(),
   }));
 
 const { buildQuotaExport: mockBuildQuotaExport, writeQuotaExport: mockWriteQuotaExport } =
@@ -43,6 +49,16 @@ vi.mock("../src/lib/tui-compact-format.js", async () => {
   return {
     ...actual,
     buildCompactQuotaStatusLine,
+  };
+});
+
+vi.mock("../src/lib/opencode-go-active.js", async () => {
+  const actual = await vi.importActual<typeof import("../src/lib/opencode-go-active.js")>(
+    "../src/lib/opencode-go-active.js",
+  );
+  return {
+    ...actual,
+    resolveCurrentOpenCodeGoAccount,
   };
 });
 
@@ -97,6 +113,8 @@ describe("tui runtime helpers", () => {
     collectQuotaRenderData.mockReset();
     buildCompactQuotaStatusLine.mockReset();
     buildSidebarQuotaPanelLines.mockReset();
+    resolveCurrentOpenCodeGoAccount.mockReset();
+    resolveCurrentOpenCodeGoAccount.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -1092,6 +1110,86 @@ describe("tui runtime helpers", () => {
       percentDisplayMode: "used",
       maxWidth: 42,
     });
+  });
+
+  it("marks the current OpenCode Go account before formatting sidebar surfaces", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            percentDisplayMode: "remaining",
+            tuiSidebarPanel: { enabled: true },
+            tuiCompactStatus: { enabled: true, sessionPrompt: true },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const data = {
+      entries: [
+        {
+          name: "OpenCode Go (Personal) Monthly",
+          group: "OpenCode Go (Personal)",
+          quotaAccountId: "personal",
+          percentRemaining: 22,
+        },
+        {
+          name: "OpenCode Go (Backup) Monthly",
+          group: "OpenCode Go (Backup)",
+          quotaAccountId: "backup",
+          percentRemaining: 30,
+        },
+      ],
+      errors: [],
+      sessionTokens: undefined,
+    };
+    collectQuotaRenderData.mockResolvedValue({ active: [], data });
+    resolveCurrentOpenCodeGoAccount.mockResolvedValue({
+      accountId: "backup",
+      config: {
+        accounts: [
+          {
+            id: "personal",
+            workspaceId: "ws-1",
+            authCookie: "cookie-1",
+            apiKey: "go-key-1",
+          },
+          {
+            id: "backup",
+            workspaceId: "ws-2",
+            authCookie: "cookie-2",
+            apiKey: "go-key-2",
+          },
+        ],
+      },
+    });
+    buildSidebarQuotaPanelLines.mockReturnValue(["Sidebar quota"]);
+    buildCompactQuotaStatusLine.mockReturnValue("Compact quota");
+
+    await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: { worktree: worktreeDir, directory: nestedDir },
+          session: { messages: () => [] },
+        },
+        client: {
+          session: {
+            get: vi.fn().mockResolvedValue({ data: {} }),
+          },
+        },
+      } as any,
+      sessionID: "active-go-account",
+    });
+
+    const sidebarData = buildSidebarQuotaPanelLines.mock.calls[0]?.[0]?.data;
+    const compactData = buildCompactQuotaStatusLine.mock.calls[0]?.[0]?.data;
+    expect(sidebarData?.entries[0]?.isActiveAccount).toBeUndefined();
+    expect(sidebarData?.entries[1]?.isActiveAccount).toBe(true);
+    expect(compactData?.entries[1]?.isActiveAccount).toBe(true);
   });
 
   it("uses compact fallback text when session collection has no data", async () => {

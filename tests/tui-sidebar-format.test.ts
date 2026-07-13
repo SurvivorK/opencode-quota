@@ -142,6 +142,30 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect(lines.every((line) => line.length <= TUI_SIDEBAR_MAX_WIDTH)).toBe(true);
   });
 
+  it("keeps the current account marker visible in the narrow sidebar header", () => {
+    const lines = buildSidebarQuotaPanelLines({
+      config: {
+        formatStyle: "allWindows",
+        percentDisplayMode: "remaining",
+      },
+      data: {
+        entries: [
+          {
+            name: "OpenCode Go Monthly",
+            group: "OpenCode Go (very-long-account-label@example.com)",
+            label: "Monthly:",
+            percentRemaining: 30,
+            isActiveAccount: true,
+          },
+        ],
+        errors: [],
+      },
+    });
+
+    expect(lines[0]).toMatch(/^\[CURRENT\] \[OpenCode Go\]/u);
+    expect(lines.join("\n")).toContain("30% left");
+  });
+
   it("preserves explicit non-duration provider labels in grouped sidebar output", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {

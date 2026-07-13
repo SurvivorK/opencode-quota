@@ -192,7 +192,7 @@ Each `id` and effective display label must be unique. `label` is optional and de
 
 Run `/quota_switch personal` to replace OpenCode's active `opencode-go` API credential with the key stored for `personal`. This uses the same OpenCode authentication API as `/connect`, takes effect for new requests, and never includes the API key in command output.
 
-When a configured `apiKey` matches OpenCode's active `opencode-go` credential, `/quota` marks that account header with `[CURRENT]`. The marker is resolved from the latest auth file when the command runs, so it updates immediately after `/quota_switch` even when quota values are still cached.
+When a configured `apiKey` matches OpenCode's active `opencode-go` credential, `/quota` and the TUI sidebar mark that account with `[CURRENT]`. The marker is resolved from the latest auth file when each surface renders, so it updates after `/quota_switch` even when quota values are still cached.
 
 Run `/quota_refresh` to bypass the provider cache, fetch fresh quota for every enabled provider, replace both the memory and disk cache, and show the refreshed result immediately.
 

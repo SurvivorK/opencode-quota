@@ -130,6 +130,31 @@ describe("buildCompactQuotaStatusLine", () => {
     expect(line).not.toContain("[Copilot] (personal)");
   });
 
+  it("moves the current account first and keeps its marker visible", () => {
+    const line = buildCompactQuotaStatusLine({
+      percentDisplayMode: "remaining",
+      maxWidth: 36,
+      data: {
+        entries: [
+          {
+            name: "OpenCode Go Personal",
+            group: "OpenCode Go (Personal)",
+            percentRemaining: 22,
+          },
+          {
+            name: "OpenCode Go Backup",
+            group: "OpenCode Go (Backup)",
+            percentRemaining: 30,
+            isActiveAccount: true,
+          },
+        ],
+        errors: [],
+      },
+    });
+
+    expect(line).toMatch(/^\[CURRENT\] OpenCode Go Backup 30%/u);
+  });
+
   it("formats value entries without percent mode changing the value", () => {
     const remaining = buildCompactQuotaStatusLine({
       percentDisplayMode: "remaining",

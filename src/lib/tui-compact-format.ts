@@ -67,13 +67,12 @@ function getBracketedProviderName(name: string): string | null {
 
 function getProviderName(entry: QuotaToastEntry): string {
   const bracketedProvider = getBracketedProviderName(entry.name);
-  if (bracketedProvider) return formatCompactProviderLabel(bracketedProvider);
-
-  if (entry.group?.trim()) {
-    return formatCompactProviderLabel(formatGroupedHeader(entry.group));
-  }
-
-  return formatCompactProviderLabel(entry.name);
+  const provider = bracketedProvider
+    ? formatCompactProviderLabel(bracketedProvider)
+    : entry.group?.trim()
+      ? formatCompactProviderLabel(formatGroupedHeader(entry.group))
+      : formatCompactProviderLabel(entry.name);
+  return entry.isActiveAccount ? `[CURRENT] ${provider}` : provider;
 }
 
 function getWindowLabel(entry: QuotaToastEntry): string | null {
@@ -122,7 +121,17 @@ function formatCompactEntrySegments(params: {
   const groups = new Map<string, CompactPercentGroup>();
   const pendingSegments: PendingCompactSegment[] = [];
 
-  for (const entry of params.entries) {
+  const activeFirstEntries = params.entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.entry.isActiveAccount)) -
+          Number(Boolean(left.entry.isActiveAccount)) ||
+        left.index - right.index,
+    )
+    .map(({ entry }) => entry);
+
+  for (const entry of activeFirstEntries) {
     if (isValueEntry(entry)) {
       const segment = formatCompactValueEntrySegment(entry);
       if (segment) pendingSegments.push({ kind: "value", segment });

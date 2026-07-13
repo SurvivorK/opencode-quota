@@ -101,7 +101,8 @@ export function formatQuotaRowsGrouped(params: {
     const list = groups.get(g) ?? [];
     if (gi > 0) lines.push("");
 
-    lines.push(formatGroupedHeader(g).slice(0, maxWidth));
+    const currentPrefix = list.some((entry) => entry.isActiveAccount) ? "[CURRENT] " : "";
+    lines.push(`${currentPrefix}${formatGroupedHeader(g)}`.slice(0, maxWidth));
 
     for (const entry of list) {
       const right = entry.right ? entry.right.trim() : "";
