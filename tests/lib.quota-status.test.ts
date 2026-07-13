@@ -183,6 +183,7 @@ const openCodeGoMocks = vi.hoisted(() => ({
     source: null,
     missing: null,
     error: null,
+    accountCount: 0,
     checkedPaths: [],
   })),
   resolveOpenCodeGoConfigCached: vi.fn(async () => ({ state: "none" as const })),
@@ -1235,12 +1236,15 @@ describe("buildQuotaStatusReport", () => {
       source: "env",
       missing: null,
       error: null,
+      accountCount: 1,
       checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
     });
     openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
       state: "configured",
       source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
+      config: {
+        accounts: [{ id: "default", workspaceId: "ws-123", authCookie: "cookie-abc" }],
+      },
     });
     openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
       success: true,
@@ -1271,6 +1275,7 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("opencode_go:");
     expect(report).toContain("- config_state: configured");
     expect(report).toContain("- config_source: env");
+    expect(report).toContain("- account_count: 1");
     expect(report).toContain("- selected_windows: rolling,weekly,monthly");
     expect(report).toContain(
       "- rolling_usage: percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
@@ -1291,12 +1296,15 @@ describe("buildQuotaStatusReport", () => {
       source: "env",
       missing: null,
       error: null,
+      accountCount: 1,
       checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
     });
     openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
       state: "configured",
       source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
+      config: {
+        accounts: [{ id: "default", workspaceId: "ws-123", authCookie: "cookie-abc" }],
+      },
     });
     openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
       success: true,
@@ -1333,12 +1341,15 @@ describe("buildQuotaStatusReport", () => {
       source: "env",
       missing: null,
       error: null,
+      accountCount: 1,
       checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
     });
     openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
       state: "configured",
       source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
+      config: {
+        accounts: [{ id: "default", workspaceId: "ws-123", authCookie: "cookie-abc" }],
+      },
     });
     openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
       success: true,
@@ -1376,12 +1387,15 @@ describe("buildQuotaStatusReport", () => {
       source: "env",
       missing: null,
       error: null,
+      accountCount: 1,
       checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
     });
     openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
       state: "configured",
       source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
+      config: {
+        accounts: [{ id: "default", workspaceId: "ws-123", authCookie: "cookie-abc" }],
+      },
     });
     openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
       success: true,
@@ -1405,7 +1419,102 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain(
       "- rolling_usage: percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
     );
-    expect(report).toContain("- live_fetch_error: Selected OpenCode Go dashboard window(s) missing: weekly (weeklyUsage)");
+    expect(report).toContain(
+      "- live_fetch_error: Selected OpenCode Go dashboard window(s) missing: weekly (weeklyUsage)",
+    );
+  });
+
+  it("reports indexed usage for multiple OpenCode Go accounts", async () => {
+    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
+      state: "configured",
+      source: "/tmp/opencode-go.json",
+      missing: null,
+      error: null,
+      accountCount: 2,
+      checkedPaths: ["/tmp/opencode-go.json"],
+    });
+    openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
+      state: "configured",
+      source: "/tmp/opencode-go.json",
+      config: {
+        accounts: [
+          { id: "personal", label: "Personal", workspaceId: "ws-1", authCookie: "secret-1" },
+          { id: "backup", workspaceId: "ws-2", authCookie: "secret-2" },
+        ],
+      },
+    });
+    openCodeGoMocks.queryOpenCodeGoQuota
+      .mockResolvedValueOnce({
+        success: true,
+        rolling: {
+          usagePercent: 7,
+          percentRemaining: 93,
+          resetInSec: 18000,
+          resetTimeIso: "2026-03-12T17:45:00.000Z",
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        weekly: {
+          usagePercent: 22,
+          percentRemaining: 78,
+          resetInSec: 540000,
+          resetTimeIso: "2026-03-18T18:45:00.000Z",
+        },
+      });
+
+    const report = await buildOpenCodeGoStatusReport();
+
+    expect(report).toContain("- account_count: 2");
+    expect(report).toContain("- account_1_id: personal");
+    expect(report).toContain("- account_1_label: Personal");
+    expect(report).toContain("- account_1_rolling_usage: percent_used=7 percent_remaining=93");
+    expect(report).toContain("- account_2_id: backup");
+    expect(report).toContain("- account_2_label: backup");
+    expect(report).toContain("- account_2_weekly_usage: percent_used=22 percent_remaining=78");
+    expect(report).not.toContain("secret-1");
+    expect(report).not.toContain("secret-2");
+    expect(openCodeGoMocks.queryOpenCodeGoQuota).toHaveBeenNthCalledWith(1, "ws-1", "secret-1");
+    expect(openCodeGoMocks.queryOpenCodeGoQuota).toHaveBeenNthCalledWith(2, "ws-2", "secret-2");
+  });
+
+  it("keeps per-account status when another OpenCode Go account fails", async () => {
+    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
+      state: "configured",
+      source: "/tmp/opencode-go.json",
+      missing: null,
+      error: null,
+      accountCount: 2,
+      checkedPaths: ["/tmp/opencode-go.json"],
+    });
+    openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
+      state: "configured",
+      source: "/tmp/opencode-go.json",
+      config: {
+        accounts: [
+          { id: "personal", workspaceId: "ws-1", authCookie: "secret-1" },
+          { id: "backup", label: "Backup\nAccount", workspaceId: "ws-2", authCookie: "secret-2" },
+        ],
+      },
+    });
+    openCodeGoMocks.queryOpenCodeGoQuota
+      .mockResolvedValueOnce({
+        success: true,
+        rolling: {
+          usagePercent: 7,
+          percentRemaining: 93,
+          resetInSec: 18000,
+          resetTimeIso: "2026-03-12T17:45:00.000Z",
+        },
+      })
+      .mockResolvedValueOnce({ success: false, error: "Forbidden\nretry" });
+
+    const report = await buildOpenCodeGoStatusReport();
+
+    expect(report).toContain("- account_1_rolling_usage: percent_used=7 percent_remaining=93");
+    expect(report).toContain("- account_2_label: Backup Account");
+    expect(report).toContain("- account_2_live_fetch_error: Forbidden retry");
+    expect(report).not.toContain("Forbidden\nretry");
   });
 
   it("reports OpenCode Go invalid config details without attempting a live fetch", async () => {

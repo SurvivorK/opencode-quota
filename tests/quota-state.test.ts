@@ -159,6 +159,38 @@ describe("quota-state shared cache", () => {
     expect(provider.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("persists the per-group single-window presentation flag", async () => {
+    const quotaStateA = await import("../src/lib/quota-state.js");
+    quotaStateA.__resetQuotaStateForTests();
+    const provider = {
+      id: "opencode-go",
+      isAvailable: vi.fn(),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [{ name: "Personal 5h", group: "OpenCode Go (Personal)", percentRemaining: 55 }],
+        errors: [],
+        presentation: { singleWindowPerGroup: true },
+      }),
+    } as any;
+
+    await quotaStateA.fetchQuotaProviderResult({
+      provider,
+      ctx: createTestContext(),
+      ttlMs: 60_000,
+    });
+
+    vi.resetModules();
+    const quotaStateB = await import("../src/lib/quota-state.js");
+    const second = await quotaStateB.fetchQuotaProviderResult({
+      provider,
+      ctx: createTestContext(),
+      ttlMs: 60_000,
+    });
+
+    expect(second.presentation).toEqual({ singleWindowPerGroup: true });
+    expect(provider.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("accepts persisted legacy classic presentation fields for cache compatibility", async () => {
     const quotaStateA = await import("../src/lib/quota-state.js");
     quotaStateA.__resetQuotaStateForTests();

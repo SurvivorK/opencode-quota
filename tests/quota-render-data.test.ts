@@ -555,6 +555,66 @@ describe("collectQuotaRenderData shared quota state", () => {
     ]);
   });
 
+  it("selects one bottleneck window per account group when requested", async () => {
+    const entries = [
+      { name: "Personal 5h", group: "OpenCode Go (Personal)", label: "5h:", percentRemaining: 70 },
+      {
+        name: "Personal Weekly",
+        group: "OpenCode Go (Personal)",
+        label: "Weekly:",
+        percentRemaining: 15,
+      },
+      {
+        name: "Personal Monthly",
+        group: "OpenCode Go (Personal)",
+        label: "Monthly:",
+        percentRemaining: 60,
+      },
+      { name: "Backup 5h", group: "OpenCode Go (Backup)", label: "5h:", percentRemaining: 10 },
+      {
+        name: "Backup Weekly",
+        group: "OpenCode Go (Backup)",
+        label: "Weekly:",
+        percentRemaining: 40,
+      },
+      {
+        name: "Backup Monthly",
+        group: "OpenCode Go (Backup)",
+        label: "Monthly:",
+        percentRemaining: 90,
+      },
+    ];
+    const provider = {
+      id: "opencode-go",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries,
+        errors: [],
+        presentation: { singleWindowPerGroup: true },
+      }),
+    };
+
+    const result = await collectQuotaRenderData({
+      client: TEST_CLIENT,
+      config: {
+        ...DEFAULT_CONFIG,
+        enabledProviders: ["opencode-go"],
+        showSessionTokens: false,
+      },
+      surfaceExplicitProviderIssues: true,
+      formatStyle: "singleWindow",
+      providers: [provider],
+      includeAllWindowsData: true,
+    });
+
+    expect(result.data?.entries).toEqual([
+      { name: "[OpenCode Go] (Personal) Weekly", percentRemaining: 15 },
+      { name: "[OpenCode Go] (Backup) 5h", percentRemaining: 10 },
+    ]);
+    expect(result.allWindowsData?.entries).toEqual(entries);
+  });
+
   it("projects Gemini quality tiers as bottleneck-only in single-window and all rows in all-windows", async () => {
     const geminiProvider = {
       id: "google-gemini-cli",

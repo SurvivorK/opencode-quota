@@ -3,9 +3,15 @@ import { join } from "path";
 
 import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
 
-export interface OpenCodeGoConfig {
+export interface OpenCodeGoAccountConfig {
+  id: string;
+  label?: string;
   workspaceId: string;
   authCookie: string;
+}
+
+export interface OpenCodeGoConfig {
+  accounts: OpenCodeGoAccountConfig[];
 }
 
 export type ResolvedOpenCodeGoConfig =
@@ -19,12 +25,18 @@ export interface OpenCodeGoConfigDiagnostics {
   source: string | null;
   missing: string | null;
   error: string | null;
+  accountCount: number;
   checkedPaths: string[];
 }
 
 type ReadConfigFileResult =
   | { state: "missing" }
-  | { state: "loaded"; config: Partial<OpenCodeGoConfig> }
+  | { state: "loaded"; config: Record<string, unknown> }
+  | { state: "invalid"; error: string };
+
+type ParsedOpenCodeGoConfig =
+  | { state: "configured"; config: OpenCodeGoConfig }
+  | { state: "incomplete"; missing: string }
   | { state: "invalid"; error: string };
 
 function getConfigCandidatePaths(): string[] {
@@ -49,13 +61,97 @@ async function readConfigFile(path: string): Promise<ReadConfigFileResult> {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return { state: "invalid", error: "Config file must contain a JSON object" };
     }
-    return { state: "loaded", config: parsed as Partial<OpenCodeGoConfig> };
+    return { state: "loaded", config: parsed };
   } catch (error) {
     if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
       return { state: "missing" };
     }
     return { state: "invalid", error: getConfigFileError(error) };
   }
+}
+
+function trimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseOpenCodeGoAccount(
+  value: unknown,
+  index: number,
+):
+  | { state: "configured"; account: OpenCodeGoAccountConfig }
+  | Exclude<ParsedOpenCodeGoConfig, { state: "configured" }> {
+  const path = `accounts[${index}]`;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { state: "invalid", error: `${path} must be a JSON object` };
+  }
+
+  const raw = value as Record<string, unknown>;
+  const id = trimmedString(raw.id);
+  const workspaceId = trimmedString(raw.workspaceId);
+  const authCookie = trimmedString(raw.authCookie);
+
+  if (!id) return { state: "incomplete", missing: `${path}.id` };
+  if (!workspaceId) return { state: "incomplete", missing: `${path}.workspaceId` };
+  if (!authCookie) return { state: "incomplete", missing: `${path}.authCookie` };
+
+  if (raw.label !== undefined && typeof raw.label !== "string") {
+    return { state: "invalid", error: `${path}.label must be a string` };
+  }
+  const label = trimmedString(raw.label);
+  if (raw.label !== undefined && !label) {
+    return { state: "invalid", error: `${path}.label must not be empty` };
+  }
+
+  return {
+    state: "configured",
+    account: { id, ...(label ? { label } : {}), workspaceId, authCookie },
+  };
+}
+
+function parseOpenCodeGoConfig(raw: Record<string, unknown>): ParsedOpenCodeGoConfig {
+  if ("accounts" in raw) {
+    if (!Array.isArray(raw.accounts)) {
+      return { state: "invalid", error: "accounts must be a JSON array" };
+    }
+    if (raw.accounts.length === 0) {
+      return { state: "invalid", error: "accounts must contain at least one account" };
+    }
+
+    const accounts: OpenCodeGoAccountConfig[] = [];
+    const ids = new Set<string>();
+    const labels = new Set<string>();
+
+    for (const [index, value] of raw.accounts.entries()) {
+      const parsed = parseOpenCodeGoAccount(value, index);
+      if (parsed.state !== "configured") return parsed;
+
+      const { account } = parsed;
+      if (ids.has(account.id)) {
+        return { state: "invalid", error: `Duplicate account id: ${account.id}` };
+      }
+      const displayLabel = account.label ?? account.id;
+      if (labels.has(displayLabel)) {
+        return { state: "invalid", error: `Duplicate account label: ${displayLabel}` };
+      }
+
+      ids.add(account.id);
+      labels.add(displayLabel);
+      accounts.push(account);
+    }
+
+    return { state: "configured", config: { accounts } };
+  }
+
+  const workspaceId = trimmedString(raw.workspaceId);
+  const authCookie = trimmedString(raw.authCookie);
+  if (workspaceId && authCookie) {
+    return {
+      state: "configured",
+      config: { accounts: [{ id: "default", workspaceId, authCookie }] },
+    };
+  }
+
+  return { state: "incomplete", missing: !workspaceId ? "workspaceId" : "authCookie" };
 }
 
 export function resolveOpenCodeGoConfigFromEnv(
@@ -69,7 +165,7 @@ export function resolveOpenCodeGoConfigFromEnv(
   if (workspaceId && authCookie) {
     return {
       state: "configured",
-      config: { workspaceId, authCookie },
+      config: { accounts: [{ id: "default", workspaceId, authCookie }] },
       source: "env",
     };
   }
@@ -93,21 +189,18 @@ export async function resolveOpenCodeGoConfig(): Promise<ResolvedOpenCodeGoConfi
       return { state: "invalid", source: path, error: fileResult.error };
     }
 
-    const config = fileResult.config;
-
-    const workspaceId = typeof config.workspaceId === "string" ? config.workspaceId.trim() : "";
-    const authCookie = typeof config.authCookie === "string" ? config.authCookie.trim() : "";
-
-    if (workspaceId && authCookie) {
+    const parsed = parseOpenCodeGoConfig(fileResult.config);
+    if (parsed.state === "configured") {
       return {
         state: "configured",
-        config: { workspaceId, authCookie },
+        config: parsed.config,
         source: path,
       };
     }
-
-    const missing = !workspaceId ? "workspaceId" : "authCookie";
-    return { state: "incomplete", source: path, missing };
+    if (parsed.state === "incomplete") {
+      return { state: "incomplete", source: path, missing: parsed.missing };
+    }
+    return { state: "invalid", source: path, error: parsed.error };
   }
 
   return { state: "none" };
@@ -137,7 +230,14 @@ export async function getOpenCodeGoConfigDiagnostics(): Promise<OpenCodeGoConfig
   const checkedPaths = getConfigCandidatePaths();
 
   if (resolved.state === "none") {
-    return { state: "none", source: null, missing: null, error: null, checkedPaths };
+    return {
+      state: "none",
+      source: null,
+      missing: null,
+      error: null,
+      accountCount: 0,
+      checkedPaths,
+    };
   }
 
   if (resolved.state === "incomplete") {
@@ -146,6 +246,7 @@ export async function getOpenCodeGoConfigDiagnostics(): Promise<OpenCodeGoConfig
       source: resolved.source,
       missing: resolved.missing,
       error: null,
+      accountCount: 0,
       checkedPaths,
     };
   }
@@ -156,6 +257,7 @@ export async function getOpenCodeGoConfigDiagnostics(): Promise<OpenCodeGoConfig
       source: resolved.source,
       missing: null,
       error: resolved.error,
+      accountCount: 0,
       checkedPaths,
     };
   }
@@ -165,6 +267,7 @@ export async function getOpenCodeGoConfigDiagnostics(): Promise<OpenCodeGoConfig
     source: resolved.source,
     missing: null,
     error: null,
+    accountCount: resolved.config.accounts.length,
     checkedPaths,
   };
 }

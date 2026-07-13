@@ -406,13 +406,16 @@ function normalizeSingleWindowPresentation(
       : typeof legacyPresentation.classicShowRight === "boolean"
         ? legacyPresentation.classicShowRight
         : false;
-  const classicStrategy = legacyPresentation.classicStrategy === "preserve"
-    ? legacyPresentation.classicStrategy
-    : undefined;
+  const singleWindowPerGroup = legacyPresentation.singleWindowPerGroup === true;
+  const classicStrategy =
+    legacyPresentation.classicStrategy === "preserve"
+      ? legacyPresentation.classicStrategy
+      : undefined;
 
   return {
     ...(singleWindowDisplayName ? { singleWindowDisplayName } : {}),
     ...(singleWindowShowRight ? { singleWindowShowRight } : {}),
+    ...(singleWindowPerGroup ? { singleWindowPerGroup } : {}),
     ...(classicStrategy ? { classicStrategy } : {}),
   };
 }
@@ -431,6 +434,24 @@ function selectSingleWindowEntry(entries: QuotaToastEntry[]): QuotaToastEntry | 
   }
 
   return selectedPercentEntry ?? entries[0];
+}
+
+function selectSingleWindowEntriesByGroup(entries: QuotaToastEntry[]): QuotaToastEntry[] {
+  const grouped = new Map<string, QuotaToastEntry[]>();
+  for (const entry of entries) {
+    const group = entry.group?.trim() ?? "";
+    const existing = grouped.get(group);
+    if (existing) {
+      existing.push(entry);
+    } else {
+      grouped.set(group, [entry]);
+    }
+  }
+
+  return Array.from(grouped.values()).flatMap((groupEntries) => {
+    const selected = selectSingleWindowEntry(groupEntries);
+    return selected ? [selected] : [];
+  });
 }
 
 function projectProviderResultToStyle(
@@ -456,20 +477,21 @@ function projectProviderResultToStyle(
       );
     });
   }
-  const selectedEntry = selectSingleWindowEntry(entries);
-  if (!selectedEntry) {
-    return [];
-  }
+  const selectedEntries = presentation?.singleWindowPerGroup
+    ? selectSingleWindowEntriesByGroup(entries)
+    : [selectSingleWindowEntry(entries)].filter((entry): entry is QuotaToastEntry =>
+        Boolean(entry),
+      );
 
-  return [
+  return selectedEntries.map((entry) =>
     renameSingleWindowEntry(
-      stripSingleWindowEntryMeta(selectedEntry, presentation?.singleWindowShowRight ?? false),
+      stripSingleWindowEntryMeta(entry, presentation?.singleWindowShowRight ?? false),
       buildSingleWindowName({
-        entry: selectedEntry,
+        entry,
         singleWindowDisplayName: presentation?.singleWindowDisplayName,
       }),
     ),
-  ];
+  );
 }
 
 function getExplicitNoDataMessage(provider: QuotaProvider): string {

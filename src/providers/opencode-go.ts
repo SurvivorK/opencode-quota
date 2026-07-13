@@ -15,12 +15,14 @@ import type { OpenCodeGoResult, OpenCodeGoWindowKey } from "../lib/types.js";
 import {
   DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS,
   resolveOpenCodeGoConfigCached,
+  type OpenCodeGoAccountConfig,
 } from "../lib/opencode-go-config.js";
 import { queryOpenCodeGoQuota } from "../lib/opencode-go.js";
 import { normalizeQuotaProviderId } from "../lib/provider-metadata.js";
 import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
 
 const OPENCODE_GO_PROVIDER_LABEL = "OpenCode Go";
+const OPENCODE_GO_ACCOUNT_CONCURRENCY = 3;
 const OPENCODE_GO_WINDOW_ORDER: OpenCodeGoWindowKey[] = ["rolling", "weekly", "monthly"];
 const OPENCODE_GO_WINDOW_LABELS: Record<
   OpenCodeGoWindowKey,
@@ -58,6 +60,7 @@ function formatMissingWindowList(windows: OpenCodeGoWindowKey[]): string {
 function buildOpenCodeGoEntries(
   result: Extract<OpenCodeGoResult, { success: true }>,
   selectedWindows: OpenCodeGoWindowKey[],
+  group: string = OPENCODE_GO_PROVIDER_LABEL,
 ): QuotaToastEntry[] {
   const selected = new Set(selectedWindows);
   const entries: QuotaToastEntry[] = [];
@@ -70,8 +73,11 @@ function buildOpenCodeGoEntries(
 
     const labels = OPENCODE_GO_WINDOW_LABELS[window];
     entries.push({
-      name: labels.name,
-      group: OPENCODE_GO_PROVIDER_LABEL,
+      name:
+        group === OPENCODE_GO_PROVIDER_LABEL
+          ? labels.name
+          : `${group} ${labels.label.replace(/:$/u, "")}`,
+      group,
       label: labels.label,
       percentRemaining: usage.percentRemaining,
       resetTimeIso: usage.resetTimeIso,
@@ -79,6 +85,34 @@ function buildOpenCodeGoEntries(
   }
 
   return entries;
+}
+
+function getOpenCodeGoAccountGroup(account: OpenCodeGoAccountConfig, multiple: boolean): string {
+  return multiple
+    ? `${OPENCODE_GO_PROVIDER_LABEL} (${account.label ?? account.id})`
+    : OPENCODE_GO_PROVIDER_LABEL;
+}
+
+async function mapWithConcurrency<T, R>(params: {
+  items: readonly T[];
+  concurrency: number;
+  fn: (item: T, index: number) => Promise<R>;
+}): Promise<R[]> {
+  const results = new Array<R>(params.items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, Math.trunc(params.concurrency)), params.items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= params.items.length) return;
+        results[index] = await params.fn(params.items[index]!, index);
+      }
+    }),
+  );
+
+  return results;
 }
 
 export const opencodeGoProvider: QuotaProvider = {
@@ -119,33 +153,50 @@ export const opencodeGoProvider: QuotaProvider = {
       );
     }
 
-    const result = await queryOpenCodeGoQuota(config.config.workspaceId, config.config.authCookie, {
-      requestTimeoutMs: ctx.config?.requestTimeoutMsConfigured
-        ? ctx.config.requestTimeoutMs
-        : undefined,
+    const accounts = config.config.accounts;
+    const multiple = accounts.length > 1;
+    const results = await mapWithConcurrency({
+      items: accounts,
+      concurrency: OPENCODE_GO_ACCOUNT_CONCURRENCY,
+      fn: async (account) => ({
+        account,
+        result: await queryOpenCodeGoQuota(account.workspaceId, account.authCookie, {
+          requestTimeoutMs: ctx.config?.requestTimeoutMsConfigured
+            ? ctx.config.requestTimeoutMs
+            : undefined,
+        }),
+      }),
     });
 
-    if (!result) {
+    if (results.every(({ result }) => !result)) {
       return notAttemptedResult();
     }
 
-    if (!result.success) {
-      return attemptedErrorResult(OPENCODE_GO_PROVIDER_LABEL, result.error);
-    }
-
     const windows = ctx.config.opencodeGoWindows ?? OPENCODE_GO_WINDOW_ORDER;
-    const entries = buildOpenCodeGoEntries(result, windows);
-    const missingSelectedWindows = windows.filter((window) => !result[window]);
+    const entries: QuotaToastEntry[] = [];
+    const errors: QuotaProviderResult["errors"] = [];
 
-    if (missingSelectedWindows.length > 0 && !isDefaultOpenCodeGoWindowSelection(windows)) {
-      return attemptedResult(entries, [
-        {
-          label: OPENCODE_GO_PROVIDER_LABEL,
+    for (const { account, result } of results) {
+      const group = getOpenCodeGoAccountGroup(account, multiple);
+      if (!result) {
+        errors.push({ label: group, message: "OpenCode Go returned null" });
+        continue;
+      }
+      if (!result.success) {
+        errors.push({ label: group, message: result.error });
+        continue;
+      }
+
+      entries.push(...buildOpenCodeGoEntries(result, windows, group));
+      const missingSelectedWindows = windows.filter((window) => !result[window]);
+      if (missingSelectedWindows.length > 0 && !isDefaultOpenCodeGoWindowSelection(windows)) {
+        errors.push({
+          label: group,
           message: `Selected OpenCode Go dashboard window(s) missing: ${formatMissingWindowList(missingSelectedWindows)}`,
-        },
-      ]);
+        });
+      }
     }
 
-    return attemptedResult(entries);
+    return attemptedResult(entries, errors, multiple ? { singleWindowPerGroup: true } : undefined);
   },
 };

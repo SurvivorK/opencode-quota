@@ -198,12 +198,13 @@ Run `/quota_status` and check the Gemini CLI live probe rows.
 <details>
 <summary><strong>OpenCode Go</strong></summary>
 
-Run `/quota_status` and check the `opencode_go` section.
+Run `/quota_status` and check the `opencode_go` section. Multi-account setups report `account_count` plus indexed `account_N_id`, `account_N_label`, usage, and error rows.
 
 | Symptom                  | Fix                                                                                                                                                                                            |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Config not detected      | Set both `OPENCODE_GO_WORKSPACE_ID` and `OPENCODE_GO_AUTH_COOKIE`, then rerun `/quota_status`.                                                                                                 |
-| Incomplete config        | `workspaceId` and `authCookie` must come from the same source.                                                                                                                                 |
+| Config not detected      | Set both environment variables, or add `accounts` to `~/.config/opencode/opencode-quota/opencode-go.json`, then rerun `/quota_status`.                                                         |
+| Incomplete config        | Every account object needs a unique `id` plus its matching `workspaceId` and `authCookie`.                                                                                                     |
+| One account fails        | Check that account's indexed `account_N_live_fetch_error` row and refresh only its browser `auth` cookie. Other accounts continue to report normally.                                          |
 | Scrape returns no data   | Refresh the browser `auth` cookie from `opencode.ai`.                                                                                                                                          |
 | Selected window missing  | Check `/quota_status` for `selected_windows` and `live_fetch_error`; remove unavailable windows from `opencodeGoWindows` in `opencode-quota/quota-toast.json` or refresh the dashboard cookie. |
 | Dashboard format changed | This integration scrapes the dashboard, so it can break if the dashboard markup changes.                                                                                                       |

@@ -86,6 +86,8 @@ export interface SessionTokensData {
 export interface QuotaProviderPresentation {
   singleWindowDisplayName?: string;
   singleWindowShowRight?: boolean;
+  /** Select one bottleneck entry from each provider-defined group in single-window views. */
+  singleWindowPerGroup?: boolean;
   /**
    * When set to "preserve", the provider's entries are kept individually
    * (one per window) even in single-window format styles.

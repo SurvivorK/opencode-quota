@@ -49,8 +49,21 @@ function mockConfigInvalid(
 function mockConfigConfigured(workspaceId = "ws-123", authCookie = "cookie-abc") {
   mocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
     state: "configured",
-    config: { workspaceId, authCookie },
+    config: { accounts: [{ id: "default", workspaceId, authCookie }] },
     source: "env",
+  });
+}
+
+function mockMultiAccountConfig() {
+  mocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
+    state: "configured",
+    config: {
+      accounts: [
+        { id: "personal", label: "Personal", workspaceId: "ws-1", authCookie: "cookie-1" },
+        { id: "backup", workspaceId: "ws-2", authCookie: "cookie-2" },
+      ],
+    },
+    source: "/tmp/opencode-go.json",
   });
 }
 
@@ -257,6 +270,56 @@ describe("opencode-go provider", () => {
       percentRemaining: 84,
     });
     expect(out.entries[2]).toHaveProperty("resetTimeIso");
+  });
+
+  it("returns separately grouped entries for multiple accounts in config order", async () => {
+    mockMultiAccountConfig();
+    mockDashboardSuccess(buildDashboardHtml(7, 18000, 2, 540000, 16, 2480000));
+    mockDashboardSuccess(buildDashboardHtml(40, 3600, 20, 7200, 10, 14400));
+
+    const out = await runProviderFetch();
+
+    expectAttemptedWithNoErrors(out);
+    expect(out.presentation).toEqual({ singleWindowPerGroup: true });
+    expect(out.entries).toHaveLength(6);
+    expect(out.entries.map((entry) => [entry.name, entry.group, entry.percentRemaining])).toEqual([
+      ["OpenCode Go (Personal) 5h", "OpenCode Go (Personal)", 93],
+      ["OpenCode Go (Personal) Weekly", "OpenCode Go (Personal)", 98],
+      ["OpenCode Go (Personal) Monthly", "OpenCode Go (Personal)", 84],
+      ["OpenCode Go (backup) 5h", "OpenCode Go (backup)", 60],
+      ["OpenCode Go (backup) Weekly", "OpenCode Go (backup)", 80],
+      ["OpenCode Go (backup) Monthly", "OpenCode Go (backup)", 90],
+    ]);
+    expect(mocks.fetchWithTimeout).toHaveBeenNthCalledWith(
+      1,
+      "https://opencode.ai/workspace/ws-1/go",
+      expect.objectContaining({ headers: expect.objectContaining({ Cookie: "auth=cookie-1" }) }),
+      10_000,
+    );
+    expect(mocks.fetchWithTimeout).toHaveBeenNthCalledWith(
+      2,
+      "https://opencode.ai/workspace/ws-2/go",
+      expect.objectContaining({ headers: expect.objectContaining({ Cookie: "auth=cookie-2" }) }),
+      10_000,
+    );
+  });
+
+  it("keeps successful account entries when another account fails", async () => {
+    mockMultiAccountConfig();
+    mockDashboardSuccess(buildDashboardHtml(7, 18000, 2, 540000, 16, 2480000));
+    mockDashboardHttpFailure(403, "Forbidden");
+
+    const out = await runProviderFetch();
+
+    expect(out.attempted).toBe(true);
+    expect(out.entries).toHaveLength(3);
+    expect(out.entries.every((entry) => entry.group === "OpenCode Go (Personal)")).toBe(true);
+    expect(out.errors).toEqual([
+      {
+        label: "OpenCode Go (backup)",
+        message: "OpenCode Go dashboard error 403: Forbidden",
+      },
+    ]);
   });
 
   it("parses decimal dashboard usage values", async () => {
@@ -542,7 +605,14 @@ describe("opencode-go isAvailable", () => {
   });
 
   it.each([
-    [{ state: "configured", config: { workspaceId: "ws", authCookie: "ck" }, source: "env" }, true],
+    [
+      {
+        state: "configured",
+        config: { accounts: [{ id: "default", workspaceId: "ws", authCookie: "ck" }] },
+        source: "env",
+      },
+      true,
+    ],
     [{ state: "incomplete", source: "env", missing: "authCookie" }, false],
     [{ state: "invalid", source: "/tmp/opencode-go.json", error: "broken" }, false],
     [{ state: "none" }, false],

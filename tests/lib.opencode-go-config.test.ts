@@ -48,6 +48,129 @@ describe("opencode-go config resolution", () => {
     }
   });
 
+  it("normalizes the legacy single-account file format", async () => {
+    const [configDir] = await createConfigDirs();
+    const configPath = getConfigPath(configDir);
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({ configDirs: [configDir] });
+    await writeFile(
+      configPath,
+      JSON.stringify({ workspaceId: " ws-legacy ", authCookie: " cookie-legacy " }),
+    );
+
+    const { resolveOpenCodeGoConfig } = await import("../src/lib/opencode-go-config.js");
+
+    await expect(resolveOpenCodeGoConfig()).resolves.toEqual({
+      state: "configured",
+      source: configPath,
+      config: {
+        accounts: [{ id: "default", workspaceId: "ws-legacy", authCookie: "cookie-legacy" }],
+      },
+    });
+  });
+
+  it("loads and trims multiple named accounts", async () => {
+    const [configDir] = await createConfigDirs();
+    const configPath = getConfigPath(configDir);
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({ configDirs: [configDir] });
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        accounts: [
+          { id: " personal ", label: " Personal ", workspaceId: " ws-1 ", authCookie: " ck-1 " },
+          { id: "backup", workspaceId: "ws-2", authCookie: "ck-2" },
+        ],
+      }),
+    );
+
+    const { getOpenCodeGoConfigDiagnostics, resolveOpenCodeGoConfig } =
+      await import("../src/lib/opencode-go-config.js");
+
+    await expect(resolveOpenCodeGoConfig()).resolves.toEqual({
+      state: "configured",
+      source: configPath,
+      config: {
+        accounts: [
+          { id: "personal", label: "Personal", workspaceId: "ws-1", authCookie: "ck-1" },
+          { id: "backup", workspaceId: "ws-2", authCookie: "ck-2" },
+        ],
+      },
+    });
+    await expect(getOpenCodeGoConfigDiagnostics()).resolves.toMatchObject({
+      state: "configured",
+      accountCount: 2,
+    });
+  });
+
+  it("keeps the environment pair as the highest-priority default account", async () => {
+    const [configDir] = await createConfigDirs();
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({ configDirs: [configDir] });
+    process.env.OPENCODE_GO_WORKSPACE_ID = "ws-env";
+    process.env.OPENCODE_GO_AUTH_COOKIE = "cookie-env";
+
+    const { resolveOpenCodeGoConfig } = await import("../src/lib/opencode-go-config.js");
+
+    await expect(resolveOpenCodeGoConfig()).resolves.toEqual({
+      state: "configured",
+      source: "env",
+      config: {
+        accounts: [{ id: "default", workspaceId: "ws-env", authCookie: "cookie-env" }],
+      },
+    });
+  });
+
+  it("reports an account-specific missing field", async () => {
+    const [configDir] = await createConfigDirs();
+    const configPath = getConfigPath(configDir);
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({ configDirs: [configDir] });
+    await writeFile(
+      configPath,
+      JSON.stringify({ accounts: [{ id: "backup", workspaceId: "ws-2" }] }),
+    );
+
+    const { resolveOpenCodeGoConfig } = await import("../src/lib/opencode-go-config.js");
+
+    await expect(resolveOpenCodeGoConfig()).resolves.toEqual({
+      state: "incomplete",
+      source: configPath,
+      missing: "accounts[0].authCookie",
+    });
+  });
+
+  it.each([
+    [{ accounts: [] }, "accounts must contain at least one account"],
+    [
+      {
+        accounts: [
+          { id: "same", workspaceId: "ws-1", authCookie: "ck-1" },
+          { id: "same", workspaceId: "ws-2", authCookie: "ck-2" },
+        ],
+      },
+      "Duplicate account id: same",
+    ],
+    [
+      {
+        accounts: [
+          { id: "one", label: "Shared", workspaceId: "ws-1", authCookie: "ck-1" },
+          { id: "two", label: "Shared", workspaceId: "ws-2", authCookie: "ck-2" },
+        ],
+      },
+      "Duplicate account label: Shared",
+    ],
+  ])("rejects invalid multi-account config %#", async (contents, error) => {
+    const [configDir] = await createConfigDirs();
+    const configPath = getConfigPath(configDir);
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({ configDirs: [configDir] });
+    await writeFile(configPath, JSON.stringify(contents));
+
+    const { resolveOpenCodeGoConfig } = await import("../src/lib/opencode-go-config.js");
+
+    await expect(resolveOpenCodeGoConfig()).resolves.toEqual({
+      state: "invalid",
+      source: configPath,
+      error,
+    });
+  });
+
   it("stops at the first invalid config file instead of falling through to a lower-priority path", async () => {
     const [primaryDir, fallbackDir] = await createConfigDirs();
     const primaryPath = getConfigPath(primaryDir);

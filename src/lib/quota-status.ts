@@ -93,6 +93,7 @@ import { isValueEntry } from "./entries.js";
 import type {
   CursorQuotaPlan,
   MaintainerAnnouncementsConfig,
+  OpenCodeGoResult,
   OpenCodeGoWindow,
   OpenCodeGoWindowKey,
   PricingSnapshotSource,
@@ -183,11 +184,50 @@ function isDefaultOpenCodeGoStatusWindowSelection(windows: OpenCodeGoWindowKey[]
 }
 
 function formatOpenCodeGoMissingWindows(windows: OpenCodeGoWindowKey[]): string {
-  return windows.map((window) => `${window} (${OPENCODE_GO_STATUS_WINDOW_FIELDS[window]})`).join(", ");
+  return windows
+    .map((window) => `${window} (${OPENCODE_GO_STATUS_WINDOW_FIELDS[window]})`)
+    .join(", ");
 }
 
 function formatOpenCodeGoUsage(window: OpenCodeGoWindow): string {
   return `percent_used=${window.usagePercent} percent_remaining=${window.percentRemaining} reset_in_sec=${window.resetInSec} reset_at=${window.resetTimeIso}`;
+}
+
+function appendOpenCodeGoAccountStatusRows(params: {
+  rows: ReportKvRow[];
+  prefix: string;
+  quota: OpenCodeGoResult | null;
+  selectedWindows: OpenCodeGoWindowKey[];
+}): void {
+  const { rows, prefix, quota, selectedWindows } = params;
+  if (!quota) {
+    rows.push({ key: `${prefix}live_fetch_error`, value: "OpenCode Go returned null" });
+    return;
+  }
+  if (!quota.success) {
+    rows.push({
+      key: `${prefix}live_fetch_error`,
+      value: sanitizeSingleLineDisplayText(quota.error),
+    });
+    return;
+  }
+
+  for (const window of OPENCODE_GO_STATUS_WINDOW_ORDER) {
+    const usage = quota[window];
+    if (!usage) continue;
+    rows.push({ key: `${prefix}${window}_usage`, value: formatOpenCodeGoUsage(usage) });
+  }
+
+  const missingSelectedWindows = selectedWindows.filter((window) => !quota[window]);
+  if (
+    missingSelectedWindows.length > 0 &&
+    !isDefaultOpenCodeGoStatusWindowSelection(selectedWindows)
+  ) {
+    rows.push({
+      key: `${prefix}live_fetch_error`,
+      value: `Selected OpenCode Go dashboard window(s) missing: ${formatOpenCodeGoMissingWindows(missingSelectedWindows)}`,
+    });
+  }
 }
 
 function formatSettingSources(sources: QuotaToastSettingSources | undefined): string {
@@ -880,7 +920,7 @@ export async function buildQuotaStatusReport(params: {
       key: "message",
       value: `failed to probe Claude CLI${
         err ? `: ${sanitizeDisplayText(err instanceof Error ? err.message : String(err))}` : ""
-      }`, 
+      }`,
     });
   }
   appendProviderCompactLiveProbeRows(anthropicRows, "anthropic", params.providerLiveProbes);
@@ -1152,6 +1192,7 @@ export async function buildQuotaStatusReport(params: {
   if (openCodeGoDiag.error) {
     openCodeGoRows.push({ key: "config_error", value: sanitizeDisplayText(openCodeGoDiag.error) });
   }
+  openCodeGoRows.push({ key: "account_count", value: String(openCodeGoDiag.accountCount ?? 0) });
   openCodeGoRows.push({ key: "config_checked_paths", value: joinOrNone(openCodeGoDiag.checkedPaths) });
   const openCodeGoSelectedWindows = params.opencodeGoWindows ?? OPENCODE_GO_STATUS_WINDOW_ORDER;
   openCodeGoRows.push({
@@ -1168,35 +1209,30 @@ export async function buildQuotaStatusReport(params: {
         value: "OpenCode Go config became unavailable before fetch",
       });
     } else {
-      const openCodeGoQuota = await queryOpenCodeGoQuota(
-        openCodeGoConfig.config.workspaceId,
-        openCodeGoConfig.config.authCookie,
+      const accounts = openCodeGoConfig.config.accounts;
+      const multiple = accounts.length > 1;
+      const quotas = await Promise.all(
+        accounts.map((account) => queryOpenCodeGoQuota(account.workspaceId, account.authCookie)),
       );
-      if (!openCodeGoQuota) {
-        openCodeGoRows.push({ key: "live_fetch_error", value: "OpenCode Go returned null" });
-      } else if (!openCodeGoQuota.success) {
-        openCodeGoRows.push({ key: "live_fetch_error", value: openCodeGoQuota.error });
-      } else {
-        for (const window of OPENCODE_GO_STATUS_WINDOW_ORDER) {
-          const usage = openCodeGoQuota[window];
-          if (!usage) continue;
 
+      for (const [index, account] of accounts.entries()) {
+        const prefix = multiple ? `account_${index + 1}_` : "";
+        if (multiple) {
           openCodeGoRows.push({
-            key: `${window}_usage`,
-            value: formatOpenCodeGoUsage(usage),
+            key: `${prefix}id`,
+            value: sanitizeSingleLineDisplayText(account.id),
+          });
+          openCodeGoRows.push({
+            key: `${prefix}label`,
+            value: sanitizeSingleLineDisplayText(account.label ?? account.id),
           });
         }
-
-        const missingSelectedWindows = openCodeGoSelectedWindows.filter((window) => !openCodeGoQuota[window]);
-        if (
-          missingSelectedWindows.length > 0 &&
-          !isDefaultOpenCodeGoStatusWindowSelection(openCodeGoSelectedWindows)
-        ) {
-          openCodeGoRows.push({
-            key: "live_fetch_error",
-            value: `Selected OpenCode Go dashboard window(s) missing: ${formatOpenCodeGoMissingWindows(missingSelectedWindows)}`,
-          });
-        }
+        appendOpenCodeGoAccountStatusRows({
+          rows: openCodeGoRows,
+          prefix,
+          quota: quotas[index] ?? null,
+          selectedWindows: openCodeGoSelectedWindows,
+        });
       }
     }
   }

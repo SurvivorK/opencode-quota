@@ -73,6 +73,7 @@ function isQuotaProviderPresentation(value: unknown): boolean {
   const hasKnownField =
     "singleWindowDisplayName" in presentation ||
     "singleWindowShowRight" in presentation ||
+    "singleWindowPerGroup" in presentation ||
     "classicDisplayName" in presentation ||
     "classicShowRight" in presentation ||
     "classicStrategy" in presentation;
@@ -86,6 +87,8 @@ function isQuotaProviderPresentation(value: unknown): boolean {
       typeof presentation.singleWindowDisplayName === "string") &&
     (presentation.singleWindowShowRight === undefined ||
       typeof presentation.singleWindowShowRight === "boolean") &&
+    (presentation.singleWindowPerGroup === undefined ||
+      typeof presentation.singleWindowPerGroup === "boolean") &&
     (presentation.classicDisplayName === undefined ||
       typeof presentation.classicDisplayName === "string") &&
     (presentation.classicShowRight === undefined ||

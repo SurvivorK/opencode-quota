@@ -165,5 +165,29 @@ export OPENCODE_GO_WORKSPACE_ID="your-workspace-id"
 export OPENCODE_GO_AUTH_COOKIE="your-auth-cookie"
 ```
 
-Use `opencodeGoWindows` to choose **5h**, **Weekly**, and/or **Monthly** windows. Environment variables take precedence over the optional `opencode-go.json` file.
+For multiple Go subscriptions, create `~/.config/opencode/opencode-quota/opencode-go.json`:
 
+```json
+{
+  "accounts": [
+    {
+      "id": "personal",
+      "label": "Personal",
+      "workspaceId": "your-first-workspace-id",
+      "authCookie": "your-first-auth-cookie"
+    },
+    {
+      "id": "backup",
+      "label": "Backup",
+      "workspaceId": "your-second-workspace-id",
+      "authCookie": "your-second-auth-cookie"
+    }
+  ]
+}
+```
+
+Each `id` and effective display label must be unique. `label` is optional and defaults to `id`. The legacy single-account object (`{ "workspaceId": "...", "authCookie": "..." }`) remains supported. The environment variable pair represents one `default` account and takes precedence over the entire file.
+
+The browser `auth` cookie is sensitive. Keep this file out of source control and restrict it with `chmod 600 ~/.config/opencode/opencode-quota/opencode-go.json`. Each account is queried independently, so an expired cookie does not hide quota from the other accounts.
+
+Use `opencodeGoWindows` to choose **5h**, **Weekly**, and/or **Monthly** windows for all configured accounts.
