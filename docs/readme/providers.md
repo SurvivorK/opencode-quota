@@ -174,20 +174,24 @@ For multiple Go subscriptions, create `~/.config/opencode/opencode-quota/opencod
       "id": "personal",
       "label": "Personal",
       "workspaceId": "your-first-workspace-id",
-      "authCookie": "your-first-auth-cookie"
+      "authCookie": "your-first-auth-cookie",
+      "apiKey": "your-first-go-api-key"
     },
     {
       "id": "backup",
       "label": "Backup",
       "workspaceId": "your-second-workspace-id",
-      "authCookie": "your-second-auth-cookie"
+      "authCookie": "your-second-auth-cookie",
+      "apiKey": "your-second-go-api-key"
     }
   ]
 }
 ```
 
-Each `id` and effective display label must be unique. `label` is optional and defaults to `id`. The legacy single-account object (`{ "workspaceId": "...", "authCookie": "..." }`) remains supported. The environment variable pair represents one `default` account and takes precedence over the entire file.
+Each `id` and effective display label must be unique. `label` is optional and defaults to `id`. `apiKey` is optional for quota display but required before that account can be selected with `/quota_switch <id>`. The legacy single-account object (`{ "workspaceId": "...", "authCookie": "..." }`) remains supported. The environment variable pair represents one `default` account and takes precedence over the entire file.
 
-The browser `auth` cookie is sensitive. Keep this file out of source control and restrict it with `chmod 600 ~/.config/opencode/opencode-quota/opencode-go.json`. Each account is queried independently, so an expired cookie does not hide quota from the other accounts.
+Run `/quota_switch personal` to replace OpenCode's active `opencode-go` API credential with the key stored for `personal`. This uses the same OpenCode authentication API as `/connect`, takes effect for new requests, and never includes the API key in command output.
+
+The browser `auth` cookie and Go API key are sensitive. Keep this file out of source control and restrict it with `chmod 600 ~/.config/opencode/opencode-quota/opencode-go.json`. Each account is queried independently, so an expired cookie does not hide quota from the other accounts.
 
 Use `opencodeGoWindows` to choose **5h**, **Weekly**, and/or **Monthly** windows for all configured accounts.

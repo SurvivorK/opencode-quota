@@ -8,6 +8,7 @@ export interface OpenCodeGoAccountConfig {
   label?: string;
   workspaceId: string;
   authCookie: string;
+  apiKey?: string;
 }
 
 export interface OpenCodeGoConfig {
@@ -89,10 +90,18 @@ function parseOpenCodeGoAccount(
   const id = trimmedString(raw.id);
   const workspaceId = trimmedString(raw.workspaceId);
   const authCookie = trimmedString(raw.authCookie);
+  const apiKey = trimmedString(raw.apiKey);
 
   if (!id) return { state: "incomplete", missing: `${path}.id` };
   if (!workspaceId) return { state: "incomplete", missing: `${path}.workspaceId` };
   if (!authCookie) return { state: "incomplete", missing: `${path}.authCookie` };
+
+  if (raw.apiKey !== undefined && typeof raw.apiKey !== "string") {
+    return { state: "invalid", error: `${path}.apiKey must be a string` };
+  }
+  if (raw.apiKey !== undefined && !apiKey) {
+    return { state: "invalid", error: `${path}.apiKey must not be empty` };
+  }
 
   if (raw.label !== undefined && typeof raw.label !== "string") {
     return { state: "invalid", error: `${path}.label must be a string` };
@@ -104,7 +113,13 @@ function parseOpenCodeGoAccount(
 
   return {
     state: "configured",
-    account: { id, ...(label ? { label } : {}), workspaceId, authCookie },
+    account: {
+      id,
+      ...(label ? { label } : {}),
+      workspaceId,
+      authCookie,
+      ...(apiKey ? { apiKey } : {}),
+    },
   };
 }
 
@@ -144,10 +159,19 @@ function parseOpenCodeGoConfig(raw: Record<string, unknown>): ParsedOpenCodeGoCo
 
   const workspaceId = trimmedString(raw.workspaceId);
   const authCookie = trimmedString(raw.authCookie);
+  const apiKey = trimmedString(raw.apiKey);
+  if (raw.apiKey !== undefined && typeof raw.apiKey !== "string") {
+    return { state: "invalid", error: "apiKey must be a string" };
+  }
+  if (raw.apiKey !== undefined && !apiKey) {
+    return { state: "invalid", error: "apiKey must not be empty" };
+  }
   if (workspaceId && authCookie) {
     return {
       state: "configured",
-      config: { accounts: [{ id: "default", workspaceId, authCookie }] },
+      config: {
+        accounts: [{ id: "default", workspaceId, authCookie, ...(apiKey ? { apiKey } : {}) }],
+      },
     };
   }
 

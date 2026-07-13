@@ -54,7 +54,11 @@ describe("opencode-go config resolution", () => {
     runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({ configDirs: [configDir] });
     await writeFile(
       configPath,
-      JSON.stringify({ workspaceId: " ws-legacy ", authCookie: " cookie-legacy " }),
+      JSON.stringify({
+        workspaceId: " ws-legacy ",
+        authCookie: " cookie-legacy ",
+        apiKey: " key-legacy ",
+      }),
     );
 
     const { resolveOpenCodeGoConfig } = await import("../src/lib/opencode-go-config.js");
@@ -63,7 +67,14 @@ describe("opencode-go config resolution", () => {
       state: "configured",
       source: configPath,
       config: {
-        accounts: [{ id: "default", workspaceId: "ws-legacy", authCookie: "cookie-legacy" }],
+        accounts: [
+          {
+            id: "default",
+            workspaceId: "ws-legacy",
+            authCookie: "cookie-legacy",
+            apiKey: "key-legacy",
+          },
+        ],
       },
     });
   });
@@ -76,7 +87,13 @@ describe("opencode-go config resolution", () => {
       configPath,
       JSON.stringify({
         accounts: [
-          { id: " personal ", label: " Personal ", workspaceId: " ws-1 ", authCookie: " ck-1 " },
+          {
+            id: " personal ",
+            label: " Personal ",
+            workspaceId: " ws-1 ",
+            authCookie: " ck-1 ",
+            apiKey: " key-1 ",
+          },
           { id: "backup", workspaceId: "ws-2", authCookie: "ck-2" },
         ],
       }),
@@ -90,7 +107,13 @@ describe("opencode-go config resolution", () => {
       source: configPath,
       config: {
         accounts: [
-          { id: "personal", label: "Personal", workspaceId: "ws-1", authCookie: "ck-1" },
+          {
+            id: "personal",
+            label: "Personal",
+            workspaceId: "ws-1",
+            authCookie: "ck-1",
+            apiKey: "key-1",
+          },
           { id: "backup", workspaceId: "ws-2", authCookie: "ck-2" },
         ],
       },
@@ -138,6 +161,18 @@ describe("opencode-go config resolution", () => {
 
   it.each([
     [{ accounts: [] }, "accounts must contain at least one account"],
+    [
+      {
+        accounts: [{ id: "one", workspaceId: "ws-1", authCookie: "ck-1", apiKey: 123 }],
+      },
+      "accounts[0].apiKey must be a string",
+    ],
+    [
+      {
+        accounts: [{ id: "one", workspaceId: "ws-1", authCookie: "ck-1", apiKey: "  " }],
+      },
+      "accounts[0].apiKey must not be empty",
+    ],
     [
       {
         accounts: [

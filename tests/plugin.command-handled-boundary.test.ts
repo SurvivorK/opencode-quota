@@ -1,4 +1,4 @@
-import { rm } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isCommandHandledError } from "../src/lib/command-handled.js";
@@ -43,6 +43,12 @@ vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
     configDir: `${TEST_RUNTIME_ROOT}/config`,
     cacheDir: `${TEST_RUNTIME_ROOT}/cache`,
     stateDir: `${TEST_RUNTIME_ROOT}/state`,
+  }),
+  getOpencodeRuntimeDirCandidates: () => ({
+    dataDirs: [`${TEST_RUNTIME_ROOT}/data`],
+    configDirs: [`${TEST_RUNTIME_ROOT}/config`],
+    cacheDirs: [`${TEST_RUNTIME_ROOT}/cache`],
+    stateDirs: [`${TEST_RUNTIME_ROOT}/state`],
   }),
 }));
 
@@ -137,10 +143,10 @@ describe("plugin command handled boundary", () => {
 
     expect(hooks["command.execute.before"]).toBeDefined();
     expect(cfg.command).toBeDefined();
-    expect(QUOTA_DIALOG_COMMANDS).toHaveLength(12);
-    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.id)).size).toBe(12);
-    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.slashName)).size).toBe(12);
-    expect(Object.keys(cfg.command ?? {})).toHaveLength(12);
+    expect(QUOTA_DIALOG_COMMANDS).toHaveLength(13);
+    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.id)).size).toBe(13);
+    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.slashName)).size).toBe(13);
+    expect(Object.keys(cfg.command ?? {})).toHaveLength(13);
     for (const spec of QUOTA_DIALOG_COMMANDS) {
       expect(cfg.command?.[spec.id]).toEqual({
         template: `/${spec.slashName}`,
@@ -159,6 +165,56 @@ describe("plugin command handled boundary", () => {
     ).resolves.toBeUndefined();
 
     expect(client.session.prompt).not.toHaveBeenCalled();
+  });
+
+  it("handles /quota_switch by updating only the opencode-go auth credential", async () => {
+    const configDir = `${TEST_RUNTIME_ROOT}/config/opencode-quota`;
+    await mkdir(configDir, { recursive: true });
+    await writeFile(
+      `${configDir}/opencode-go.json`,
+      JSON.stringify({
+        accounts: [
+          {
+            id: "personal",
+            label: "Personal",
+            workspaceId: "ws-1",
+            authCookie: "cookie-1",
+            apiKey: "go-secret-1",
+          },
+        ],
+      }),
+    );
+    const client = createClient();
+
+    await runServerCommand({
+      command: "quota_switch",
+      arguments: "personal",
+      sessionID: "session-switch",
+      client,
+    });
+
+    expect(client.auth.set).toHaveBeenCalledWith({
+      path: { id: "opencode-go" },
+      body: { type: "api", key: "go-secret-1" },
+      throwOnError: true,
+    });
+    expect(getPromptText(client)).toContain("OpenCode Go subscription switched");
+    expect(getPromptText(client)).toContain("Account: personal");
+    expect(getPromptText(client)).not.toContain("go-secret-1");
+  });
+
+  it("handles /quota_switch without an id as deterministic usage output", async () => {
+    const client = createClient();
+
+    await runServerCommand({
+      command: "quota_switch",
+      sessionID: "session-switch-missing",
+      client,
+    });
+
+    expect(client.auth.set).not.toHaveBeenCalled();
+    expect(getPromptText(client)).toContain("Invalid arguments for /quota_switch");
+    expect(getPromptText(client)).toContain("Usage: /quota_switch <id>");
   });
 
   it("handles server /quota by injecting deterministic output and aborting continuation", async () => {

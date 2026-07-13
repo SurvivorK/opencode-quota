@@ -56,10 +56,16 @@ import {
   BUNDLED_MAINTAINER_ANNOUNCEMENTS,
   getMaintainerAnnouncementsSummary,
 } from "./maintainer-announcements.js";
+import {
+  formatOpenCodeGoSwitchCommandOutput,
+  switchOpenCodeGoAccount,
+  type OpenCodeGoAuthSetClient,
+} from "./opencode-go-switch.js";
 
 export type QuotaDialogCommandId =
   | "quota"
   | "quota_status"
+  | "quota_switch"
   | "quota_announcements"
   | "pricing_refresh"
   | TokenReportCommandId;
@@ -224,6 +230,14 @@ export const QUOTA_DIALOG_COMMANDS: readonly QuotaDialogCommandSpec[] = [
     description: "Diagnostics for quota, TUI, pricing, and local storage.",
     dialogSize: "xlarge",
     requiresSession: true,
+    acceptsArguments: true,
+  },
+  {
+    id: "quota_switch",
+    slashName: "quota_switch",
+    title: "OpenCode Go Subscription Switch",
+    description: "Switch the active OpenCode Go subscription by configured account id.",
+    dialogSize: "medium",
     acceptsArguments: true,
   },
   {
@@ -801,7 +815,7 @@ async function buildTokenReportCommandOutput(params: {
 export async function buildQuotaDialogCommandOutput(params: {
   command: QuotaDialogCommandId;
   arguments?: string;
-  client: QuotaRuntimeClient;
+  client: QuotaRuntimeClient & OpenCodeGoAuthSetClient;
   roots: RuntimeContextRootHints;
   sessionID?: string;
   sessionMeta?: SessionModelMeta;
@@ -826,6 +840,26 @@ export async function buildQuotaDialogCommandOutput(params: {
 
   if (!runtime.config.enabled && params.command !== "quota_announcements") {
     return { state: "noop", command: params.command, reason: "disabled" };
+  }
+
+  if (params.command === "quota_switch") {
+    const accountId = (params.arguments ?? "").trim();
+    if (!accountId) {
+      return outputResult({
+        command: params.command,
+        output:
+          "Invalid arguments for /quota_switch\n\nAn account id is required.\n\nUsage: /quota_switch <id>",
+      });
+    }
+
+    const result = await switchOpenCodeGoAccount({
+      client: params.client,
+      accountId,
+    });
+    return outputResult({
+      command: params.command,
+      output: formatOpenCodeGoSwitchCommandOutput(result),
+    });
   }
 
   if (params.command === "quota") {

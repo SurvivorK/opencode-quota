@@ -68,6 +68,13 @@ import {
 
 /** Minimal client type for SDK compatibility */
 interface OpencodeClient {
+  auth: {
+    set: (params: {
+      path: { id: string };
+      body: { type: "api"; key: string };
+      throwOnError?: boolean;
+    }) => Promise<unknown>;
+  };
   config: {
     get: () => Promise<{
       data?: {

@@ -319,6 +319,9 @@ export function createPluginTestClient({
   };
 
   return {
+    auth: {
+      set: vi.fn().mockResolvedValue({ data: true }),
+    },
     config: {
       get: vi.fn().mockResolvedValue({ data: {} }),
       providers: vi.fn().mockResolvedValue({ data: { providers: [] } }),
