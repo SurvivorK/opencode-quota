@@ -194,6 +194,8 @@ Run `/quota_switch personal` to replace OpenCode's active `opencode-go` API cred
 
 When a configured `apiKey` matches OpenCode's active `opencode-go` credential, `/quota` marks that account header with `[CURRENT]`. The marker is resolved from the latest auth file when the command runs, so it updates immediately after `/quota_switch` even when quota values are still cached.
 
+Run `/quota_refresh` to bypass the provider cache, fetch fresh quota for every enabled provider, replace both the memory and disk cache, and show the refreshed result immediately.
+
 The browser `auth` cookie and Go API key are sensitive. Keep this file out of source control and restrict it with `chmod 600 ~/.config/opencode/opencode-quota/opencode-go.json`. Each account is queried independently, so an expired cookie does not hide quota from the other accounts.
 
 Use `opencodeGoWindows` to choose **5h**, **Weekly**, and/or **Monthly** windows for all configured accounts.

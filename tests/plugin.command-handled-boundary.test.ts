@@ -143,10 +143,10 @@ describe("plugin command handled boundary", () => {
 
     expect(hooks["command.execute.before"]).toBeDefined();
     expect(cfg.command).toBeDefined();
-    expect(QUOTA_DIALOG_COMMANDS).toHaveLength(13);
-    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.id)).size).toBe(13);
-    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.slashName)).size).toBe(13);
-    expect(Object.keys(cfg.command ?? {})).toHaveLength(13);
+    expect(QUOTA_DIALOG_COMMANDS).toHaveLength(14);
+    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.id)).size).toBe(14);
+    expect(new Set(QUOTA_DIALOG_COMMANDS.map((spec) => spec.slashName)).size).toBe(14);
+    expect(Object.keys(cfg.command ?? {})).toHaveLength(14);
     for (const spec of QUOTA_DIALOG_COMMANDS) {
       expect(cfg.command?.[spec.id]).toEqual({
         template: `/${spec.slashName}`,
@@ -312,6 +312,40 @@ describe("plugin command handled boundary", () => {
 
     expect(getPromptText(client)).toContain("→ [OpenCode Go] (Personal)\n");
     expect(getPromptText(client)).toContain("→ [OpenCode Go] (Backup)  [CURRENT]\n");
+  });
+
+  it("refreshes provider data and replaces the cache with /quota_refresh", async () => {
+    const provider = {
+      id: "synthetic",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi
+        .fn()
+        .mockResolvedValueOnce({
+          attempted: true,
+          entries: [{ name: "Synthetic", percentRemaining: 80 }],
+          errors: [],
+        })
+        .mockResolvedValueOnce({
+          attempted: true,
+          entries: [{ name: "Synthetic", percentRemaining: 60 }],
+          errors: [],
+        }),
+    };
+    mocks.getProviders.mockReturnValue([provider]);
+
+    const first = await runServerCommand({ command: "quota", sessionID: "session-cache-first" });
+    expect(getPromptText(first.client)).toContain("80% left");
+
+    const refreshed = await runServerCommand({
+      command: "quota_refresh",
+      sessionID: "session-cache-refresh",
+    });
+    expect(getPromptText(refreshed.client)).toContain("Quota cache refreshed");
+    expect(getPromptText(refreshed.client)).toContain("60% left");
+
+    const cached = await runServerCommand({ command: "quota", sessionID: "session-cache-latest" });
+    expect(getPromptText(cached.client)).toContain("60% left");
+    expect(provider.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("handles /tokens_between arguments through one inline injection", async () => {

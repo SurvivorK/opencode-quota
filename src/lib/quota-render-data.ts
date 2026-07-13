@@ -233,6 +233,7 @@ async function fetchProviderWithCache(params: {
   ctx: QuotaProviderContext;
   ttlMs: number;
   bypassCache?: boolean;
+  refreshCache?: boolean;
 }): Promise<QuotaProviderResult> {
   const { provider, ctx, ttlMs } = params;
 
@@ -241,6 +242,7 @@ async function fetchProviderWithCache(params: {
     ctx,
     ttlMs,
     bypassCache: params.bypassCache,
+    refreshCache: params.refreshCache,
   });
 }
 
@@ -262,6 +264,7 @@ export async function fetchProviderResults(params: {
   ctx: QuotaProviderContext;
   ttlMs: number;
   bypassCache?: boolean;
+  refreshCache?: boolean;
 }): Promise<QuotaProviderResult[]> {
   const settled = await Promise.allSettled(
     params.providers.map((provider) =>
@@ -270,6 +273,7 @@ export async function fetchProviderResults(params: {
         ctx: params.ctx,
         ttlMs: params.ttlMs,
         bypassCache: params.bypassCache,
+        refreshCache: params.refreshCache,
       }),
     ),
   );
@@ -530,6 +534,7 @@ export async function collectQuotaRenderData(params: {
   formatStyle?: QuotaFormatStyle;
   configMeta?: Pick<LoadConfigMeta, "settingSources">;
   bypassProviderCache?: boolean;
+  refreshProviderCache?: boolean;
   providers?: QuotaProvider[];
   includeAllWindowsData?: boolean;
 }): Promise<CollectQuotaRenderDataResult> {
@@ -615,6 +620,7 @@ export async function collectQuotaRenderData(params: {
     ctx: selection.ctx,
     ttlMs: params.config.minIntervalMs,
     bypassCache: params.bypassProviderCache,
+    refreshCache: params.refreshProviderCache,
   });
 
   const style = params.formatStyle ?? params.config.formatStyle;

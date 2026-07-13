@@ -249,10 +249,11 @@ export async function fetchQuotaProviderResult(params: {
   ctx: QuotaProviderContext;
   ttlMs: number;
   bypassCache?: boolean;
+  refreshCache?: boolean;
 }): Promise<QuotaProviderResult> {
-  const { provider, ctx, ttlMs, bypassCache = false } = params;
+  const { provider, ctx, ttlMs, bypassCache = false, refreshCache = false } = params;
 
-  if (bypassCache || isLiveLocalUsageProviderId(provider.id)) {
+  if ((bypassCache && !refreshCache) || isLiveLocalUsageProviderId(provider.id)) {
     return cloneQuotaProviderResult(await provider.fetch(ctx));
   }
 
@@ -261,14 +262,16 @@ export async function fetchQuotaProviderResult(params: {
   const packageVersion = await getQuotaProviderCachePackageVersion();
   await maybePrunePersistedQuotaProviderCache(now);
 
-  const inMemory = inMemoryCache.get(key);
-  if (
-    inMemory &&
-    inMemory.packageVersion === packageVersion &&
-    ttlMs > 0 &&
-    now - inMemory.timestamp < ttlMs
-  ) {
-    return cloneQuotaProviderResult(inMemory.result);
+  if (!refreshCache) {
+    const inMemory = inMemoryCache.get(key);
+    if (
+      inMemory &&
+      inMemory.packageVersion === packageVersion &&
+      ttlMs > 0 &&
+      now - inMemory.timestamp < ttlMs
+    ) {
+      return cloneQuotaProviderResult(inMemory.result);
+    }
   }
 
   const inFlight = inFlightByKey.get(key);
@@ -276,19 +279,21 @@ export async function fetchQuotaProviderResult(params: {
     return cloneQuotaProviderResult(await inFlight);
   }
 
-  const persisted = await readPersistedQuotaProviderCacheEntry({
-    key,
-    providerId: provider.id,
-    packageVersion,
-    ttlMs,
-    now,
-  });
-  if (persisted) {
-    inMemoryCache.set(key, {
-      ...persisted,
-      result: cloneQuotaProviderResult(persisted.result),
+  if (!refreshCache) {
+    const persisted = await readPersistedQuotaProviderCacheEntry({
+      key,
+      providerId: provider.id,
+      packageVersion,
+      ttlMs,
+      now,
     });
-    return cloneQuotaProviderResult(persisted.result);
+    if (persisted) {
+      inMemoryCache.set(key, {
+        ...persisted,
+        result: cloneQuotaProviderResult(persisted.result),
+      });
+      return cloneQuotaProviderResult(persisted.result);
+    }
   }
 
   const fetchPromise = (async () => {

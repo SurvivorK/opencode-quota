@@ -95,6 +95,7 @@ The server plugin registers each command once for TUI and Desktop/server. Each c
 | Command                                 | Use when                                                             |
 | --------------------------------------- | -------------------------------------------------------------------- |
 | `/quota`                                | Show your quota and usage details                                    |
+| `/quota_refresh`                        | Fetch fresh provider quota data and replace the local cache           |
 | `/quota_status`                         | Diagnose setup, auth, provider detection, pricing, and announcements |
 | `/quota_switch <id>`                    | Switch the active OpenCode Go subscription by configured account id  |
 | `/quota_announcements`                  | Read active bundled maintainer notices                               |

@@ -65,6 +65,7 @@ import { markCurrentOpenCodeGoEntries } from "./opencode-go-active.js";
 
 export type QuotaDialogCommandId =
   | "quota"
+  | "quota_refresh"
   | "quota_status"
   | "quota_switch"
   | "quota_announcements"
@@ -225,6 +226,14 @@ export const QUOTA_DIALOG_COMMANDS: readonly QuotaDialogCommandSpec[] = [
     requiresSession: true,
   },
   {
+    id: "quota_refresh",
+    slashName: "quota_refresh",
+    title: "Refresh OpenCode Quota",
+    description: "Refresh provider quota data and update the local cache.",
+    dialogSize: "xlarge",
+    requiresSession: true,
+  },
+  {
     id: "quota_status",
     slashName: "quota_status",
     title: "OpenCode Quota Status",
@@ -352,6 +361,7 @@ async function buildQuotaCommandUnavailableMessage(runtime: QuotaRuntimeContext)
 async function fetchQuotaCommandData(params: {
   runtime: QuotaRuntimeContext;
   setLastSessionTokenError?: (error: SessionTokenError | undefined) => void;
+  refreshProviderCache?: boolean;
 }): Promise<QuotaCommandRenderData | null> {
   const { runtime } = params;
   const request = createQuotaRuntimeRequestContext(runtime);
@@ -363,6 +373,7 @@ async function fetchQuotaCommandData(params: {
     surfaceExplicitProviderIssues: false,
     formatStyle: ALL_WINDOWS_FORMAT_STYLE,
     providers: runtime.providers,
+    refreshProviderCache: params.refreshProviderCache,
   });
 
   if (runtime.config.showSessionTokens && request.sessionID) {
@@ -863,10 +874,12 @@ export async function buildQuotaDialogCommandOutput(params: {
     });
   }
 
-  if (params.command === "quota") {
+  if (params.command === "quota" || params.command === "quota_refresh") {
+    const refreshProviderCache = params.command === "quota_refresh";
     const reportData = await fetchQuotaCommandData({
       runtime,
       setLastSessionTokenError: params.setLastSessionTokenError,
+      refreshProviderCache,
     });
     if (!reportData) {
       return outputResult({
@@ -879,12 +892,14 @@ export async function buildQuotaDialogCommandOutput(params: {
 
     return outputResult({
       command: params.command,
-      output: formatQuotaCommand({
-        ...reportData,
-        entries,
-        generatedAtMs,
-        percentDisplayMode: runtime.config.percentDisplayMode,
-      }),
+      output:
+        (refreshProviderCache ? "Quota cache refreshed\n\n" : "") +
+        formatQuotaCommand({
+          ...reportData,
+          entries,
+          generatedAtMs,
+          percentDisplayMode: runtime.config.percentDisplayMode,
+        }),
     });
   }
 

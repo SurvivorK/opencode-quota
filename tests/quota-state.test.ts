@@ -122,6 +122,51 @@ describe("quota-state shared cache", () => {
     expect(provider.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("force refreshes and replaces both memory and persisted provider cache", async () => {
+    const quotaStateA = await import("../src/lib/quota-state.js");
+    quotaStateA.__resetQuotaStateForTests();
+
+    const provider = {
+      id: "synthetic",
+      isAvailable: vi.fn(),
+      fetch: vi
+        .fn()
+        .mockResolvedValueOnce({
+          attempted: true,
+          entries: [{ name: "Synthetic", percentRemaining: 80 }],
+          errors: [],
+        })
+        .mockResolvedValueOnce({
+          attempted: true,
+          entries: [{ name: "Synthetic", percentRemaining: 60 }],
+          errors: [],
+        }),
+    } as any;
+    const ctx = createTestContext();
+
+    await quotaStateA.fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
+    const refreshed = await quotaStateA.fetchQuotaProviderResult({
+      provider,
+      ctx,
+      ttlMs: 60_000,
+      refreshCache: true,
+    });
+
+    expect(refreshed.entries[0]).toMatchObject({ percentRemaining: 60 });
+    expect(provider.fetch).toHaveBeenCalledTimes(2);
+
+    vi.resetModules();
+    const quotaStateB = await import("../src/lib/quota-state.js");
+    const persisted = await quotaStateB.fetchQuotaProviderResult({
+      provider,
+      ctx,
+      ttlMs: 60_000,
+    });
+
+    expect(persisted.entries[0]).toMatchObject({ percentRemaining: 60 });
+    expect(provider.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("reuses the persisted cache across module resets", async () => {
     const quotaStateA = await import("../src/lib/quota-state.js");
     quotaStateA.__resetQuotaStateForTests();
