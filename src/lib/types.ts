@@ -305,6 +305,11 @@ export interface SyntheticAuthData {
   key: string;
 }
 
+export interface OpenCodeGoAuthData {
+  type: "api";
+  key: string;
+}
+
 export interface MiniMaxAuthData {
   type: string;
   key?: string;
@@ -378,6 +383,7 @@ export interface AuthData {
   // Some OpenCode installs store OpenAI auth under "opencode".
   opencode?: OpenAIOAuthData;
   synthetic?: SyntheticAuthData;
+  "opencode-go"?: OpenCodeGoAuthData;
   chutes?: {
     type: string;
     key?: string;

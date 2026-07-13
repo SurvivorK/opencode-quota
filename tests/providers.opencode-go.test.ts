@@ -282,6 +282,14 @@ describe("opencode-go provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.presentation).toEqual({ singleWindowPerGroup: true });
     expect(out.entries).toHaveLength(6);
+    expect(out.entries.map((entry) => entry.quotaAccountId)).toEqual([
+      "personal",
+      "personal",
+      "personal",
+      "backup",
+      "backup",
+      "backup",
+    ]);
     expect(out.entries.map((entry) => [entry.name, entry.group, entry.percentRemaining])).toEqual([
       ["OpenCode Go (Personal) 5h", "OpenCode Go (Personal)", 93],
       ["OpenCode Go (Personal) Weekly", "OpenCode Go (Personal)", 98],

@@ -192,6 +192,8 @@ Each `id` and effective display label must be unique. `label` is optional and de
 
 Run `/quota_switch personal` to replace OpenCode's active `opencode-go` API credential with the key stored for `personal`. This uses the same OpenCode authentication API as `/connect`, takes effect for new requests, and never includes the API key in command output.
 
+When a configured `apiKey` matches OpenCode's active `opencode-go` credential, `/quota` marks that account header with `[CURRENT]`. The marker is resolved from the latest auth file when the command runs, so it updates immediately after `/quota_switch` even when quota values are still cached.
+
 The browser `auth` cookie and Go API key are sensitive. Keep this file out of source control and restrict it with `chmod 600 ~/.config/opencode/opencode-quota/opencode-go.json`. Each account is queried independently, so an expired cookie does not hide quota from the other accounts.
 
 Use `opencodeGoWindows` to choose **5h**, **Weekly**, and/or **Monthly** windows for all configured accounts.

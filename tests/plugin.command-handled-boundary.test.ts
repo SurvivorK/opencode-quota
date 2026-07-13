@@ -247,6 +247,73 @@ describe("plugin command handled boundary", () => {
     expect(getPromptText(client)).toContain("No quota providers detected");
   });
 
+  it("marks the active OpenCode Go account in /quota output", async () => {
+    const configDir = `${TEST_RUNTIME_ROOT}/config/opencode-quota`;
+    const dataDir = `${TEST_RUNTIME_ROOT}/data`;
+    await mkdir(configDir, { recursive: true });
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(
+      `${configDir}/opencode-go.json`,
+      JSON.stringify({
+        accounts: [
+          {
+            id: "personal",
+            label: "Personal",
+            workspaceId: "ws-1",
+            authCookie: "cookie-1",
+            apiKey: "go-key-1",
+          },
+          {
+            id: "backup",
+            label: "Backup",
+            workspaceId: "ws-2",
+            authCookie: "cookie-2",
+            apiKey: "go-key-2",
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      `${dataDir}/auth.json`,
+      JSON.stringify({ "opencode-go": { type: "api", key: "go-key-2" } }),
+    );
+    mocks.getProviders.mockReturnValue([
+      {
+        id: "opencode-go",
+        isAvailable: vi.fn().mockResolvedValue(true),
+        fetch: vi.fn().mockResolvedValue({
+          attempted: true,
+          entries: [
+            {
+              name: "OpenCode Go (Personal) Monthly",
+              group: "OpenCode Go (Personal)",
+              label: "Monthly:",
+              quotaAccountId: "personal",
+              percentRemaining: 22,
+            },
+            {
+              name: "OpenCode Go (Backup) Monthly",
+              group: "OpenCode Go (Backup)",
+              label: "Monthly:",
+              quotaAccountId: "backup",
+              percentRemaining: 30,
+            },
+          ],
+          errors: [],
+          presentation: { singleWindowPerGroup: true },
+        }),
+      },
+    ]);
+
+    const { client } = await runServerCommand({
+      command: "quota",
+      sessionID: "session-active-account",
+    });
+
+    expect(getPromptText(client)).toContain("→ [OpenCode Go] (Personal)\n");
+    expect(getPromptText(client)).toContain("→ [OpenCode Go] (Backup)  [CURRENT]\n");
+  });
+
   it("handles /tokens_between arguments through one inline injection", async () => {
     const { client } = await runServerCommand({
       command: "tokens_between",

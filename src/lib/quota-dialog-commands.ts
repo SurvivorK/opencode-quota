@@ -61,6 +61,7 @@ import {
   switchOpenCodeGoAccount,
   type OpenCodeGoAuthSetClient,
 } from "./opencode-go-switch.js";
+import { markCurrentOpenCodeGoEntries } from "./opencode-go-active.js";
 
 export type QuotaDialogCommandId =
   | "quota"
@@ -874,10 +875,13 @@ export async function buildQuotaDialogCommandOutput(params: {
       });
     }
 
+    const entries = await markCurrentOpenCodeGoEntries(reportData.entries);
+
     return outputResult({
       command: params.command,
       output: formatQuotaCommand({
         ...reportData,
+        entries,
         generatedAtMs,
         percentDisplayMode: runtime.config.percentDisplayMode,
       }),

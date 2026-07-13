@@ -14,6 +14,10 @@ export interface GroupedQuotaEntryMeta {
   label?: string;
   /** Optional compact right-hand summary, e.g. "42/300". */
   right?: string;
+  /** Stable configured account id used for account-aware presentation. */
+  quotaAccountId?: string;
+  /** Marks the account currently selected by the provider credential. */
+  isActiveAccount?: boolean;
 }
 
 export type QuotaToastEntry =

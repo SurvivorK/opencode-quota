@@ -61,6 +61,7 @@ function buildOpenCodeGoEntries(
   result: Extract<OpenCodeGoResult, { success: true }>,
   selectedWindows: OpenCodeGoWindowKey[],
   group: string = OPENCODE_GO_PROVIDER_LABEL,
+  accountId?: string,
 ): QuotaToastEntry[] {
   const selected = new Set(selectedWindows);
   const entries: QuotaToastEntry[] = [];
@@ -79,6 +80,7 @@ function buildOpenCodeGoEntries(
           : `${group} ${labels.label.replace(/:$/u, "")}`,
       group,
       label: labels.label,
+      ...(accountId ? { quotaAccountId: accountId } : {}),
       percentRemaining: usage.percentRemaining,
       resetTimeIso: usage.resetTimeIso,
     });
@@ -187,7 +189,7 @@ export const opencodeGoProvider: QuotaProvider = {
         continue;
       }
 
-      entries.push(...buildOpenCodeGoEntries(result, windows, group));
+      entries.push(...buildOpenCodeGoEntries(result, windows, group, account.id));
       const missingSelectedWindows = windows.filter((window) => !result[window]);
       if (missingSelectedWindows.length > 0 && !isDefaultOpenCodeGoWindowSelection(windows)) {
         errors.push({

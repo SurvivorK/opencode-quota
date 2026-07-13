@@ -120,6 +120,32 @@ describe("formatQuotaCommand", () => {
     expect(out.indexOf("Weekly:")).toBeLessThan(out.indexOf("Code Review:"));
   });
 
+  it("highlights the currently selected subscription account", () => {
+    const out = formatQuotaCommand({
+      entries: [
+        {
+          name: "OpenCode Go (Personal) Monthly",
+          group: "OpenCode Go (Personal)",
+          label: "Monthly:",
+          quotaAccountId: "personal",
+          percentRemaining: 22,
+        },
+        {
+          name: "OpenCode Go (Backup) Monthly",
+          group: "OpenCode Go (Backup)",
+          label: "Monthly:",
+          quotaAccountId: "backup",
+          isActiveAccount: true,
+          percentRemaining: 30,
+        },
+      ],
+      errors: [],
+    });
+
+    expect(out).toContain("→ [OpenCode Go] (Personal)\n");
+    expect(out).toContain("→ [OpenCode Go] (Backup)  [CURRENT]\n");
+  });
+
   it("locks rendered grouped /quota ordering for Qwen and OpenAI provider groups", () => {
     const out = formatQuotaCommand({
       entries: [

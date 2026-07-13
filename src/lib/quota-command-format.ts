@@ -63,6 +63,9 @@ function buildQuotaCommandDocument(params: {
 
   const sections: ReportSection[] = groups.map((group, index) => {
     const lines: string[] = [];
+    const activeSuffix = group.entries.some((entry) => entry.isActiveAccount)
+      ? "  [CURRENT]"
+      : "";
     for (const row of group.entries) {
       const leftText = getGroupedLeftText(row);
       const labelCol = padRight(leftText, leftCol);
@@ -79,7 +82,7 @@ function buildQuotaCommandDocument(params: {
     }
     return {
       id: `group-${index}`,
-      title: `→ ${formatGroupedHeader(group.group)}`,
+      title: `→ ${formatGroupedHeader(group.group)}${activeSuffix}`,
       blocks: [{ kind: "lines", lines }],
     };
   });
