@@ -54,6 +54,10 @@ vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
 
 type PluginHooks = {
   config?: (input: unknown) => Promise<void> | void;
+  "chat.headers"?: (
+    input: { model: { providerID: string } },
+    output: { headers: Record<string, string> },
+  ) => Promise<void> | void;
   "command.execute.before"?: (input: {
     command: string;
     arguments?: string;
@@ -167,7 +171,7 @@ describe("plugin command handled boundary", () => {
     expect(client.session.prompt).not.toHaveBeenCalled();
   });
 
-  it("handles /quota_switch by updating only the opencode-go auth credential", async () => {
+  it("handles /quota_switch and immediately overrides new opencode-go requests", async () => {
     const configDir = `${TEST_RUNTIME_ROOT}/config/opencode-quota`;
     await mkdir(configDir, { recursive: true });
     await writeFile(
@@ -181,12 +185,19 @@ describe("plugin command handled boundary", () => {
             authCookie: "cookie-1",
             apiKey: "go-secret-1",
           },
+          {
+            id: "backup",
+            label: "Backup",
+            workspaceId: "ws-2",
+            authCookie: "cookie-2",
+            apiKey: "go-secret-2",
+          },
         ],
       }),
     );
     const client = createClient();
 
-    await runServerCommand({
+    const { hooks } = await runServerCommand({
       command: "quota_switch",
       arguments: "personal",
       sessionID: "session-switch",
@@ -201,6 +212,38 @@ describe("plugin command handled boundary", () => {
     expect(getPromptText(client)).toContain("OpenCode Go subscription switched");
     expect(getPromptText(client)).toContain("Account: personal");
     expect(getPromptText(client)).not.toContain("go-secret-1");
+
+    const goHeaders = { "X-Test": "preserved" };
+    await hooks["chat.headers"]?.({ model: { providerID: "opencode-go" } }, { headers: goHeaders });
+    expect(goHeaders).toEqual({
+      "X-Test": "preserved",
+      Authorization: "Bearer go-secret-1",
+    });
+
+    const otherHeaders = { Authorization: "Bearer existing" };
+    await hooks["chat.headers"]?.(
+      { model: { providerID: "anthropic" } },
+      { headers: otherHeaders },
+    );
+    expect(otherHeaders).toEqual({ Authorization: "Bearer existing" });
+
+    await expectHandled(
+      hooks["command.execute.before"]?.({
+        command: "quota_switch",
+        arguments: "backup",
+        sessionID: "session-switch-again",
+      }),
+    );
+    await hooks["chat.headers"]?.(
+      { model: { providerID: "opencode-go" } },
+      { headers: goHeaders },
+    );
+    expect(goHeaders.Authorization).toBe("Bearer go-secret-2");
+    expect(client.auth.set).toHaveBeenLastCalledWith({
+      path: { id: "opencode-go" },
+      body: { type: "api", key: "go-secret-2" },
+      throwOnError: true,
+    });
   });
 
   it("handles /quota_switch without an id as deterministic usage output", async () => {

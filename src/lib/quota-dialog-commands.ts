@@ -835,6 +835,7 @@ export async function buildQuotaDialogCommandOutput(params: {
   generatedAtMs?: number;
   lastSessionTokenError?: SessionTokenError;
   setLastSessionTokenError?: (error: SessionTokenError | undefined) => void;
+  activateOpenCodeGoApiKey?: (apiKey: string) => void;
   log?: (message: string, extra?: Record<string, unknown>) => Promise<void>;
 }): Promise<QuotaDialogCommandOutputResult> {
   const generatedAtMs = params.generatedAtMs ?? Date.now();
@@ -867,6 +868,7 @@ export async function buildQuotaDialogCommandOutput(params: {
     const result = await switchOpenCodeGoAccount({
       client: params.client,
       accountId,
+      activateApiKey: params.activateOpenCodeGoApiKey,
     });
     return outputResult({
       command: params.command,

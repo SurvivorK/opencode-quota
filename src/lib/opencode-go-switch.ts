@@ -5,7 +5,7 @@ import {
 } from "./opencode-go-config.js";
 import { sanitizeSingleLineDisplaySnippet } from "./display-sanitize.js";
 
-const OPENCODE_GO_PROVIDER_ID = "opencode-go";
+export const OPENCODE_GO_PROVIDER_ID = "opencode-go";
 const MAX_ACCOUNT_DISPLAY_LENGTH = 80;
 
 export interface OpenCodeGoAuthSetClient {
@@ -24,6 +24,7 @@ export interface SwitchOpenCodeGoAccountParams {
   client: OpenCodeGoAuthSetClient;
   accountId: string;
   resolveConfig?: ResolveConfig;
+  activateApiKey?: (apiKey: string) => void;
 }
 
 export type SwitchOpenCodeGoAccountResult =
@@ -99,6 +100,11 @@ export async function switchOpenCodeGoAccount(
   } catch {
     return { ok: false, message: "OpenCode failed to update the authentication credential." };
   }
+
+  // OpenCode caches initialized provider instances, so persisting auth alone
+  // does not replace the credential used by an already-running provider.
+  // Let the plugin install a request-time override only after persistence succeeds.
+  params.activateApiKey?.(account.apiKey);
 
   return {
     ok: true,

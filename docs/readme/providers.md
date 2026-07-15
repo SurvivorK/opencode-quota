@@ -190,7 +190,7 @@ For multiple Go subscriptions, create `~/.config/opencode/opencode-quota/opencod
 
 Each `id` and effective display label must be unique. `label` is optional and defaults to `id`. `apiKey` is optional for quota display but required before that account can be selected with `/quota_switch <id>`. The legacy single-account object (`{ "workspaceId": "...", "authCookie": "..." }`) remains supported. The environment variable pair represents one `default` account and takes precedence over the entire file.
 
-Run `/quota_switch personal` to replace OpenCode's active `opencode-go` API credential with the key stored for `personal`. This uses the same OpenCode authentication API as `/connect`, takes effect for new requests, and never includes the API key in command output.
+Run `/quota_switch personal` to replace OpenCode's active `opencode-go` API credential with the key stored for `personal`. This persists through the same OpenCode authentication API as `/connect` and also applies a request-time credential override in the current process, so the next OpenCode Go request uses the selected account without a restart. The API key is never included in command output.
 
 When a configured `apiKey` matches OpenCode's active `opencode-go` credential, `/quota` and the TUI sidebar mark that account with `[CURRENT]`. The marker is resolved from the latest auth file when each surface renders, so it updates after `/quota_switch` even when quota values are still cached.
 

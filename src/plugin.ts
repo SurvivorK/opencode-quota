@@ -61,6 +61,7 @@ import {
   isQuotaDialogCommand,
   type QuotaDialogCommandId,
 } from "./lib/quota-dialog-commands.js";
+import { OPENCODE_GO_PROVIDER_ID } from "./lib/opencode-go-switch.js";
 
 // =============================================================================
 // Types
@@ -165,6 +166,15 @@ interface CommandExecuteInput {
   sessionID: string;
 }
 
+/** LLM request header hook shapes used for the OpenCode Go hot switch. */
+interface ChatHeadersInput {
+  model: { providerID: string };
+}
+
+interface ChatHeadersOutput {
+  headers: Record<string, string>;
+}
+
 // =============================================================================
 // Deferred Quota Refresh Specification
 // =============================================================================
@@ -249,6 +259,7 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
   let configInFlight: Promise<void> | null = null;
   let configMeta: LoadConfigMeta = createLoadConfigMeta();
   let runtimeProviders = getProviders();
+  let activeOpenCodeGoApiKey: string | undefined;
 
   // Track last session token error for /quota_status diagnostics
   let lastSessionTokenError: SessionTokenError | undefined;
@@ -433,6 +444,9 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
       lastSessionTokenError,
       setLastSessionTokenError: (error) => {
         lastSessionTokenError = error;
+      },
+      activateOpenCodeGoApiKey: (apiKey) => {
+        activeOpenCodeGoApiKey = apiKey;
       },
       log,
     });
@@ -1324,6 +1338,13 @@ export const QuotaToastPlugin: Plugin = async ({ client }) => {
     "command.execute.before": async (input: CommandExecuteInput) => {
       if (!isQuotaDialogCommand(input.command)) return;
       await handleDeterministicSlashCommand(input);
+    },
+
+    // OpenCode keeps initialized providers in memory. Override the cached
+    // provider's bearer credential on every new request after /quota_switch.
+    "chat.headers": async (input: ChatHeadersInput, output: ChatHeadersOutput) => {
+      if (input.model.providerID !== OPENCODE_GO_PROVIDER_ID || !activeOpenCodeGoApiKey) return;
+      output.headers.Authorization = `Bearer ${activeOpenCodeGoApiKey}`;
     },
 
     tool: {

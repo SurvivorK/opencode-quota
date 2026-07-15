@@ -26,11 +26,13 @@ function configured(
 describe("OpenCode Go account switching", () => {
   it("sets the opencode-go API credential without exposing the key", async () => {
     const set = vi.fn().mockResolvedValue({ data: true });
+    const activateApiKey = vi.fn();
 
     const result = await switchOpenCodeGoAccount({
       client: { auth: { set } },
       accountId: " personal ",
       resolveConfig: configured(),
+      activateApiKey,
     });
 
     expect(result).toEqual({ ok: true, accountId: "personal", label: "Personal" });
@@ -39,6 +41,8 @@ describe("OpenCode Go account switching", () => {
       body: { type: "api", key: "go-secret-1" },
       throwOnError: true,
     });
+    expect(activateApiKey).toHaveBeenCalledOnce();
+    expect(activateApiKey).toHaveBeenCalledWith("go-secret-1");
     expect(formatOpenCodeGoSwitchCommandOutput(result)).toContain(
       "OpenCode Go subscription switched",
     );
@@ -121,16 +125,19 @@ describe("OpenCode Go account switching", () => {
   it("fails closed when the SDK rejects the update and never echoes its error", async () => {
     const secret = "go-secret-1";
     const set = vi.fn().mockRejectedValue(new Error(`request included ${secret}`));
+    const activateApiKey = vi.fn();
     const result = await switchOpenCodeGoAccount({
       client: { auth: { set } },
       accountId: "personal",
       resolveConfig: configured(),
+      activateApiKey,
     });
 
     expect(result).toEqual({
       ok: false,
       message: "OpenCode failed to update the authentication credential.",
     });
+    expect(activateApiKey).not.toHaveBeenCalled();
     expect(formatOpenCodeGoSwitchCommandOutput(result)).not.toContain(secret);
   });
 
